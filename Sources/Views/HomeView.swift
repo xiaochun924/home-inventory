@@ -55,7 +55,7 @@ struct HomeView: View {
                         FilterChip(label: "品类：\(cat.rawValue)") { categoryFilter = nil }
                     }
                     if let room = roomFilter {
-                        FilterChip(label: "房间：\(room)") { roomFilter = nil }
+                        FilterChip(label: "位置：\(room)") { roomFilter = nil }
                     }
 
                     // 统计卡片（两块独立分开）
@@ -190,7 +190,7 @@ struct HomeView: View {
                      selected: categoryFilter?.rawValue,
                      select: { categoryFilter = Category(rawValue: $0) })
             }
-            chip("房间") {
+            chip("位置") {
                 menu(of: availableRooms,
                      selected: roomFilter,
                      select: { roomFilter = $0 })
