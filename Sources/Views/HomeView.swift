@@ -115,7 +115,8 @@ struct HomeView: View {
             .navigationDestination(isPresented: $showAddSheet) {
                 ItemEditView(mode: .add)
             }
-            .sheet(item: $selectedItem) { item in
+            // 物品详情：二级页面（push），顶栏与主页结构一致（GlassTopBar）
+            .navigationDestination(item: $selectedItem) { item in
                 ItemDetailView(item: item)
             }
             // 接收 tab 栏中间「+」触发的添加
