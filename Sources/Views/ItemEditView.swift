@@ -26,8 +26,6 @@ struct ItemEditView: View {
     @AppStorage("useHistoryPrediction") private var useHistoryPrediction = true
     @State private var enableExpiry = false
 
-    private let platformNames = ["淘", "京东", "抖音", "拼多多", "小红书"]
-
     var body: some View {
         ZStack {
             AppBackground().ignoresSafeArea()
@@ -104,33 +102,6 @@ struct ItemEditView: View {
                         }
                         .padding(.horizontal, 14).padding(.vertical, 8)
                         .background(glassBg)
-                    }
-
-                    // 板块五：补货
-                    sectionHeader("补货")
-                    VStack(spacing: 12) {
-                        Text("购买链接")
-                            .font(.system(size: 15))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Text("点击图标去复制分享链接")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        HStack(spacing: 14) {
-                            ForEach(platformNames, id: \.self) { p in
-                                Text(p)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundColor(.white)
-                                    .frame(width: 46, height: 32)
-                                    .background(Capsule().fill(Color(red: 0.36, green: 0.62, blue: 0.48).opacity(0.85)))
-                            }
-                        }
-                        Button { } label: {
-                            Label("添加购买链接", systemImage: "plus.circle.fill")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(Color(red: 0.30, green: 0.55, blue: 0.42))
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     Spacer().frame(height: 30)

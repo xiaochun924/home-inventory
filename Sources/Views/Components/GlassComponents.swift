@@ -38,9 +38,8 @@ struct GlassTopBar<Leading: View, Trailing: View>: View {
     var body: some View {
         // 玻璃容器：让左右圆形按钮与中间胶囊标题共享玻璃采样区，效果更一致
         GlassEffectContainer {
-            HStack {
-                leading()
-                Spacer()
+            // 标题用 ZStack 绝对居中，不受左右按钮宽度影响；左右按钮覆盖在两侧
+            ZStack {
                 // 中间悬浮玻璃胶囊标题（官方 Liquid Glass）
                 Text(title)
                     .font(.system(size: 16, weight: .semibold))
@@ -48,8 +47,12 @@ struct GlassTopBar<Leading: View, Trailing: View>: View {
                     .padding(.horizontal, 20)
                     .frame(height: 40)
                     .glassEffect(.clear, in: .capsule)
-                Spacer()
-                trailing()
+
+                HStack {
+                    leading()
+                    Spacer()
+                    trailing()
+                }
             }
         }
         .frame(height: 48)
