@@ -13,18 +13,19 @@ concurrency:
 jobs:
   build:
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 用官方 action 正确安装/选中 Xcode 26（避免 xcode-select 直接切路径的兼容问题）
       - name: Select Xcode 26
-        run: |
-          # 优先使用 Xcode 26；若 runner 安装了其他版本则回退到 26 匹配项
-          if ls /Applications/Xcode_26*.app >/dev/null 2>&1; then
-            sudo xcode-select -s /Applications/Xcode_26*.app
-          fi
-          xcodebuild -version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.0'
+
+      - name: Show Xcode version
+        run: xcodebuild -version
 
       - name: Install XcodeGen
         run: brew install xcodegen
