@@ -1,0 +1,42 @@
+name: iOS Build (Xcode 26)
+
+# 按约定：手动触发，不自动 run；需要构建时在 Actions 页手动执行，或明确告知后由我触发
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: home-inventory-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        run: |
+          # 优先使用 Xcode 26；若 runner 安装了其他版本则回退到 26 匹配项
+          if ls /Applications/Xcode_26*.app >/dev/null 2>&1; then
+            sudo xcode-select -s /Applications/Xcode_26*.app
+          fi
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build (simulator, no signing)
+        run: |
+          xcodebuild \
+            -project HomeInventory.xcodeproj \
+            -scheme HomeInventory \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build

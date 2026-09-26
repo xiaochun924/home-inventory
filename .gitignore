@@ -1,0 +1,14 @@
+# Xcode / Swift
+.DS_Store
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+.swiftpm/
+.idea/
+.vscode/
+
+# 生成的 .xcodeproj（由 project.yml 通过 xcodegen 生成，不入库）
+HomeInventory.xcodeproj/
