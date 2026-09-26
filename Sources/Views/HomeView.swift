@@ -189,6 +189,7 @@ struct HomeView: View {
         VStack(spacing: 12) {
             ForEach(list) { item in
                 ItemRow(item: item)
+                    .contentShape(Rectangle())   // 整张卡片（含空白处）都可点击进入详情
                     .onTapGesture { selectedItem = item }
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
