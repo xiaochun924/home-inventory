@@ -96,7 +96,6 @@ struct HomeView: View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 GlassTopBar(
                     title: "家庭库存",
-                    leading: { GlassCircleButton(icon: "plus") { showAddSheet = true } },
                     trailing: { GlassCircleButton(icon: showSearch ? "xmark" : "magnifyingglass") {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                             showSearch.toggle()
@@ -111,6 +110,10 @@ struct HomeView: View {
             }
             .sheet(item: $selectedItem) { item in
                 ItemDetailView(item: item)
+            }
+            // 接收 tab 栏中间「+」触发的添加
+            .onReceive(NotificationCenter.default.publisher(for: .openAddItem)) { _ in
+                showAddSheet = true
             }
         }
         .tint(Color(red: 0.30, green: 0.55, blue: 0.42))
