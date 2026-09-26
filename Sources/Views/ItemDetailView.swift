@@ -7,6 +7,9 @@ struct ItemDetailView: View {
     @Environment(\.modelContext) private var modelContext
     let item: InventoryItem
 
+    // 查询全部物品，用于收集历史存放位置供选择复用
+    @Query(sort: \InventoryItem.createdAt) private var allItems: [InventoryItem]
+
     @State private var showEdit = false
     @State private var showUnpack = false
     @State private var showRestock = false
@@ -116,9 +119,19 @@ struct ItemDetailView: View {
         }
     }
 
-    /// 存放位置修改入口：点击弹出自定义输入框（随时可改）
+    /// 存放位置修改入口：弹出历史已用位置供选择 + 自定义输入（自定义过的位置自动进入候选）
     private var locationControl: some View {
-        Button { showCustomLocation = true } label: {
+        Menu {
+            ForEach(usedLocations, id: \.self) { r in
+                Button { setLocation(r) } label: {
+                    if item.location == r { Label(r, systemImage: "checkmark") }
+                    else { Text(r) }
+                }
+            }
+            Button { showCustomLocation = true } label: {
+                Label("自定义位置…", systemImage: "pencil")
+            }
+        } label: {
             HStack(spacing: 6) {
                 Text(item.location)
                     .font(.system(size: 15, weight: .medium))
@@ -131,6 +144,13 @@ struct ItemDetailView: View {
             .padding(.vertical, 5)
             .glassEffect(.clear, in: .capsule)
         }
+    }
+
+    /// 历史存放位置（数据库去重，自定义过即出现在候选里）
+    private var usedLocations: [String] {
+        Set(allItems.map { $0.location })
+            .filter { !$0.isEmpty && $0 != "未指定" }
+            .sorted()
     }
 
     private func setLocation(_ new: String) {

@@ -13,6 +13,9 @@ struct ItemEditView: View {
     @Environment(\.modelContext) private var modelContext
     let mode: Mode
 
+    // 查询全部物品，用于收集历史存放位置供选择复用
+    @Query(sort: \InventoryItem.createdAt) private var allItems: [InventoryItem]
+
     @State private var name = ""
     @State private var brand = ""
     @State private var category: Category = .paper
@@ -45,7 +48,14 @@ struct ItemEditView: View {
                     VStack(spacing: 14) {
                         field("数量 *") { stockStepper("\(totalStock) 件", onDown: decrementStock, onUp: incrementStock) }
                         field("使用中") { stockStepper("\(inUse) 件", onDown: decrementInUse, onUp: incrementInUse) }
-                        field("存储位置 *") { locationField }
+                        field("存储位置 *") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                locationField
+                                if !usedLocations.isEmpty {
+                                    usedLocationChips
+                                }
+                            }
+                        }
                         Toggle(isOn: $isOpened) {
                             Text("已拆封")
                                 .font(.system(size: 15))
@@ -247,6 +257,29 @@ struct ItemEditView: View {
             .foregroundColor(location.isEmpty ? .secondary : .primary)
             .padding(14)
             .background(glassBg)
+    }
+
+    /// 历史存放位置（数据库去重，自定义过即出现在候选里）
+    private var usedLocations: [String] {
+        Set(allItems.map { $0.location })
+            .filter { !$0.isEmpty && $0 != "未指定" }
+            .sorted()
+    }
+
+    /// 历史位置候选胶囊：点击即填入
+    private var usedLocationChips: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 8)], spacing: 8) {
+            ForEach(usedLocations, id: \.self) { loc in
+                Button { location = loc } label: {
+                    Text(loc)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(location == loc ? .white : Color(red: 0.28, green: 0.52, blue: 0.40))
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Capsule().fill(location == loc ? Color(red: 0.36, green: 0.62, blue: 0.48) : Color.clear))
+                        .overlay(Capsule().stroke(location == loc ? Color.clear : Color(red: 0.36, green: 0.62, blue: 0.48).opacity(0.4), lineWidth: 1))
+                }
+            }
+        }
     }
 
     private func stockStepper(_ valueText: String, onDown: @escaping () -> Void, onUp: @escaping () -> Void) -> some View {
