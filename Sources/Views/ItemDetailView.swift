@@ -108,7 +108,7 @@ struct ItemDetailView: View {
             GlassCapsuleButton(title: "拆封", tint: Color(red: 0.36, green: 0.62, blue: 0.48)) {
                 showUnpack = true
             }
-            GlassCapsuleButton(title: "补货", tint: Color(red: 0.55, green: 0.65, blue: 0.48)) {
+            GlassCapsuleButton(title: "补货", tint: Color(red: 0.45, green: 0.58, blue: 0.33)) {
                 showRestock = true
             }
         }
@@ -305,7 +305,7 @@ struct RestockSheet: View {
                     .frame(width: 60)
                 Button { quantity += 1 } label: { circle("+") }
             }
-            GlassCapsuleButton(title: "确认", tint: Color(red: 0.55, green: 0.65, blue: 0.48)) {
+            GlassCapsuleButton(title: "确认", tint: Color(red: 0.45, green: 0.58, blue: 0.33)) {
                 item.restock(quantity: quantity)
                 let rec = RestockRecord(quantity: quantity)
                 rec.item = item

@@ -77,6 +77,7 @@ struct GlassCapsuleButton: View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
                 .glassEffect(.regular.tint(tint).interactive(), in: .capsule)
