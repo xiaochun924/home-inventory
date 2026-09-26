@@ -57,10 +57,9 @@ struct AppBackground: View {
     }
 }
 
-/// 液态玻璃底部导航条
+/// 液态玻璃底部导航条（官方 Liquid Glass：整条玻璃胶囊，中部悬浮加号）
 struct GlassTabBar: View {
     @Binding var selection: RootView.Tab
-    @Namespace private var indicator
 
     var body: some View {
         HStack(spacing: 16) {
@@ -68,22 +67,17 @@ struct GlassTabBar: View {
             Spacer()
             // 中部悬浮加号（新增物品入口占位，由首页处理）
             Image(systemName: "plus")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(.white)
                 .frame(width: 52, height: 52)
-                .background(Circle().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
-                .shadow(color: Color.black.opacity(0.15), radius: 10, y: 5)
+                .glassEffect(.regular.tint(Color(red: 0.36, green: 0.62, blue: 0.48)).interactive(), in: .circle)
             Spacer()
             tabButton(.settings, icon: "gearshape.fill")
         }
         .padding(.horizontal, 32)
         .padding(.vertical, 12)
-        .background(
-            Capsule()
-                .fill(.white.opacity(0.55))
-                .background(Capsule().stroke(Color.white.opacity(0.7), lineWidth: 1))
-                .shadow(color: Color.black.opacity(0.08), radius: 20, y: 6)
-        )
+        .background(Capsule().fill(.clear))
+        .glassEffect(.regular, in: .capsule)
         .padding(.horizontal, 20)
         .padding(.bottom, 8)
     }
