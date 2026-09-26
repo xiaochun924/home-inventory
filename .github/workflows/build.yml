@@ -27,23 +27,20 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
-      # runner 上的 Xcode 26 可能未安装 iOS 平台，先补齐再构建
-      - name: Install iOS platform
-        run: xcodebuild -downloadPlatform iOS
-
       - name: Install XcodeGen
         run: brew install xcodegen
 
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Build (simulator, no signing)
+      # 构建到通用 iOS 设备目标 + 关闭签名：只需 iphoneos SDK（Xcode 自带），
+      # 不依赖模拟器运行时，适合 CI 验证编译
+      - name: Build (generic iOS device, no signing)
         run: |
           xcodebuild \
             -project HomeInventory.xcodeproj \
             -scheme HomeInventory \
             -configuration Debug \
-            -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination 'generic/platform=iOS' \
             CODE_SIGNING_ALLOWED=NO \
             build
