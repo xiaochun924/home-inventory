@@ -105,7 +105,8 @@ struct HomeView: View {
                     } }
                 )
             }
-            .sheet(isPresented: $showAddSheet) {
+            // 添加物品：二级页面（push）
+            .navigationDestination(isPresented: $showAddSheet) {
                 ItemEditView(mode: .add)
             }
             .sheet(item: $selectedItem) { item in

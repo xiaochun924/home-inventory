@@ -33,6 +33,7 @@ enum StockStatus {
 final class InventoryItem {
     @Attribute(.unique) var id: UUID = UUID()
     var name: String = ""            // 物品名称，如：尿不湿 M
+    var brand: String = ""           // 品牌，如：维达
     var categoryRaw: String = Category.other.rawValue // 品类（枚举原始值）
     var location: String = "未指定"   // 存放位置，如：诸暨·1
     var totalStock: Int = 0          // 库存数量（未拆封/可用的件数）
@@ -54,6 +55,7 @@ final class InventoryItem {
     init(
         id: UUID = UUID(),
         name: String,
+        brand: String = "",
         category: Category,
         location: String,
         totalStock: Int,
@@ -64,6 +66,7 @@ final class InventoryItem {
     ) {
         self.id = id
         self.name = name
+        self.brand = brand
         self.categoryRaw = category.rawValue
         self.location = location
         self.totalStock = totalStock
