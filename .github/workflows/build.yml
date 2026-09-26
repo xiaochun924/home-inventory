@@ -1,8 +1,11 @@
-name: iOS Build & IPA (Xcode 26)
+name: iOS Build (Unsigned IPA)
 
-# 每次有新 commit（推送到 main）自动触发构建；也支持手动触发
+# 产出未签名的 .ipa，供你下载后用自有证书重签名
+# 每次有新 commit（推送 main / PR main）自动触发；也支持手动触发
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -12,50 +15,94 @@ concurrency:
 
 jobs:
   build:
+    name: Build ${{ matrix.project }}
+    # iOS 26 SDK / 液态玻璃需要 Xcode 26；显式选 26.6（macos-26 镜像默认版，含 iOS 26.5 SDK）
     runs-on: macos-latest
-    timeout-minutes: 40
+    # 发布 Release 附件需要 contents: write（GITHUB_TOKEN 自动注入）
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [HomeInventory]
+        scheme: [HomeInventory]
+
     steps:
-      - name: Checkout
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      # 选 Xcode 26.6（macos-26 镜像默认版，完整预装 iOS 26.5 SDK 与模拟器运行时）
-      # 不要选 26.0.x：该镜像未安装对应的 iOS 26.0 平台，会导致找不到 destination
-      - name: Select Xcode 26
+      - name: 选 Xcode 26.6
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: '26.6'
 
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - name: Generate Xcode project
-        run: xcodegen generate
-
-      # 设备归档（不签名，CODE_SIGNING_ALLOWED=NO）
-      - name: Archive for device
+      - name: 查看 Xcode 与 iOS SDK 版本
         run: |
-          xcodebuild archive \
-            -project HomeInventory.xcodeproj \
-            -scheme HomeInventory \
-            -configuration Release \
-            -archivePath build/HomeInventory.xcarchive \
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i "ios" || true
+
+      - name: 安装 XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+      - name: 生成 Xcode 工程
+        run: |
+          cd "${{ matrix.project }}"
+          xcodegen generate
+
+      - name: 编译（iOS 真机 SDK / Release / 关闭签名）
+        run: |
+          set -o pipefail
+          cd "${{ matrix.project }}"
+          # 不截断输出：编译错误详情必须完整留在 Actions 日志里，方便排查
+          xcodebuild \
+            -project "${{ matrix.project }}.xcodeproj" \
+            -scheme "${{ matrix.scheme }}" \
+            -sdk iphoneos \
             -destination 'generic/platform=iOS' \
-            CODE_SIGNING_ALLOWED=NO
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
 
-      # 将归档内的 .app 手动打包成 .ipa（未签名，供 sideload/重签名使用）
-      - name: Package IPA (unsigned)
+      - name: 打包未签名 IPA
         run: |
-          set -e
-          mkdir -p Payload
-          cp -R build/HomeInventory.xcarchive/Products/Applications/HomeInventory.app Payload/
-          zip -r -y HomeInventory.ipa Payload
-          ls -lh HomeInventory.ipa
+          cd "${{ matrix.project }}"
+          APP=$(find build -type d -name "*.app" | head -1)
+          if [ -z "$APP" ]; then
+            echo "未找到 .app 产物"; exit 1
+          fi
+          echo "产物: $APP"
+          rm -rf Payload && mkdir -p Payload
+          cp -r "$APP" Payload/
+          zip -qr "../${{ matrix.project }}-unsigned.ipa" Payload
+          ls -lh "../${{ matrix.project }}-unsigned.ipa"
 
-      - name: Upload IPA artifact
+      # Actions artifact 下载固定会再包一层 zip；Release 附件下载得到的就是 .ipa 原文件。
+      # 固定 tag 的 release 每次构建覆盖更新，Releases 页随时可下最新未签名包。
+      - name: 发布未签名 IPA 到 Release（直接下载 .ipa 原文件）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "${{ matrix.project }}"
+          IPA="../${{ matrix.project }}-unsigned.ipa"
+          RELEASE_TAG="unsigned-ipa"
+          # 幂等：重复构建先删掉旧 release（含旧 tag），再建新的覆盖
+          gh release delete "$RELEASE_TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$RELEASE_TAG" \
+            --title "更新最新版本" \
+            --notes "自签版本" \
+            "$IPA"
+
+      - name: 上传未签名 IPA（zip 备份）
         uses: actions/upload-artifact@v4
         with:
-          name: HomeInventory-ipa
-          path: HomeInventory.ipa
+          name: ${{ matrix.project }}-unsigned-ipa
+          path: ${{ matrix.project }}-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
