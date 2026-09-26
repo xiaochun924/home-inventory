@@ -18,11 +18,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 用官方 action 正确安装/选中 Xcode 26（避免 xcode-select 直接切路径的兼容问题）
+      # 选 Xcode 26.6（macos-26 镜像默认版，完整预装 iOS 26.5 SDK 与模拟器运行时）
+      # 不要选 26.0.x：该镜像未安装对应的 iOS 26.0 模拟器运行时，会导致找不到 destination
       - name: Select Xcode 26
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '26.0'
+          xcode-version: '26.6'
 
       - name: Show Xcode version
         run: xcodebuild -version
@@ -33,14 +34,12 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      # 构建到通用 iOS 设备目标 + 关闭签名：只需 iphoneos SDK（Xcode 自带），
-      # 不依赖模拟器运行时，适合 CI 验证编译
-      - name: Build (generic iOS device, no signing)
+      - name: Build (simulator, no signing)
         run: |
           xcodebuild \
             -project HomeInventory.xcodeproj \
             -scheme HomeInventory \
             -configuration Debug \
-            -destination 'generic/platform=iOS' \
+            -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO \
             build
