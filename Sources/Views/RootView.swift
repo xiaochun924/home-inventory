@@ -7,57 +7,42 @@ extension Notification.Name {
 
 /// 根视图：底部导航（首页 / 设置）
 /// 使用 iOS 26 官方 TabView——自带液态玻璃悬浮 tab bar 与官方 tap 切换交互
-/// tab 栏中间悬浮绿色胶囊「+」按钮：点击触发添加物品
+/// tab 栏中间为「+」tab：点击触发添加物品并自动切回首页
 struct RootView: View {
     @State private var selection: Tab = .home
 
     enum Tab: String, CaseIterable, Identifiable {
         case home = "首页"
+        case add = "添加"
         case settings = "设置"
         var id: String { rawValue }
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            TabView(selection: $selection) {
-                HomeView()
-                    .background(AppBackground().ignoresSafeArea())
-                    .tabItem { Label("首页", systemImage: "house.fill") }
-                    .tag(Tab.home)
+        TabView(selection: $selection) {
+            HomeView()
+                .background(AppBackground().ignoresSafeArea())
+                .tabItem { Label("首页", systemImage: "house.fill") }
+                .tag(Tab.home)
 
-                SettingsView()
-                    .background(AppBackground().ignoresSafeArea())
-                    .tabItem { Label("设置", systemImage: "gearshape.fill") }
-                    .tag(Tab.settings)
-            }
-            // iOS 26 官方液态玻璃 tab bar：滚动时自动最小化，tap 切换为系统原生交互
-            .tabBarMinimizeBehavior(.onScrollDown)
-            .tint(Color(red: 0.30, green: 0.55, blue: 0.42))
+            // 中间「+」tab（系统原生，位于 tab 栏正中间）：选中即触发添加，立即切回首页
+            Color.clear
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .tabItem { Label("", systemImage: "plus.circle.fill") }
+                .tag(Tab.add)
 
-            // 悬浮绿色胶囊「+」：仅首页显示，点击触发添加物品
-            if selection == .home {
-                Button {
-                    NotificationCenter.default.post(name: .openAddItem, object: nil)
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 56, height: 46)
-                        .background(
-                            Capsule().fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color(red: 0.42, green: 0.70, blue: 0.54),
-                                        Color(red: 0.26, green: 0.55, blue: 0.41)
-                                    ],
-                                    startPoint: .top, endPoint: .bottom
-                                )
-                            )
-                        )
-                        .shadow(color: Color(red: 0.26, green: 0.55, blue: 0.41).opacity(0.45),
-                                radius: 10, x: 0, y: 4)
-                }
-                .padding(.bottom, 12)
+            SettingsView()
+                .background(AppBackground().ignoresSafeArea())
+                .tabItem { Label("设置", systemImage: "gearshape.fill") }
+                .tag(Tab.settings)
+        }
+        // iOS 26 官方液态玻璃 tab bar：滚动时自动最小化，tap 切换为系统原生交互
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .tint(Color(red: 0.30, green: 0.55, blue: 0.42))
+        .onChange(of: selection) { _, newValue in
+            if newValue == .add {
+                NotificationCenter.default.post(name: .openAddItem, object: nil)
+                selection = .home
             }
         }
     }
