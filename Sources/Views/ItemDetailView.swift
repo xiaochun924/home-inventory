@@ -10,6 +10,10 @@ struct ItemDetailView: View {
     @State private var showEdit = false
     @State private var showUnpack = false
     @State private var showRestock = false
+    @State private var showCustomLocation = false
+    @State private var customLocation = ""
+
+    private let defaultRooms = ["诸暨·1", "诸暨·2", "东阳·1", "东阳·2", "厨房", "卫生间"]
 
     var body: some View {
         ZStack {
@@ -44,6 +48,14 @@ struct ItemDetailView: View {
             .sheet(isPresented: $showRestock) {
                 RestockSheet(item: item)
             }
+            .alert("修改存放位置", isPresented: $showCustomLocation) {
+                TextField("输入新位置", text: $customLocation)
+                Button("确定") {
+                    setLocation(customLocation)
+                    customLocation = ""
+                }
+                Button("取消", role: .cancel) { customLocation = "" }
+            }
         }
     }
 
@@ -68,7 +80,12 @@ struct ItemDetailView: View {
                 Divider().opacity(0.4)
 
                 HStack {
-                    labelBlock(title: "存放位置", value: item.location)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("存放位置")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        locationControl
+                    }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("最近拆封")
@@ -99,6 +116,40 @@ struct ItemDetailView: View {
                 .font(.system(size: 15, weight: .medium))
                 .foregroundColor(.primary)
         }
+    }
+
+    /// 存放位置可修改入口：点击弹出常用位置 + 自定义
+    private var locationControl: some View {
+        Menu {
+            ForEach(defaultRooms, id: \.self) { r in
+                Button { setLocation(r) } label: {
+                    if item.location == r { Label(r, systemImage: "checkmark") }
+                    else { Text(r) }
+                }
+            }
+            Button { showCustomLocation = true } label: {
+                Label("自定义位置…", systemImage: "plus.circle")
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(item.location)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(.primary)
+                Image(systemName: "pencil")
+                    .font(.system(size: 11))
+                    .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .glassEffect(.clear, in: .capsule)
+        }
+    }
+
+    private func setLocation(_ new: String) {
+        let trimmed = new.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        item.location = trimmed
+        try? modelContext.save()
     }
 
     // MARK: - 拆封 / 补货按钮
