@@ -195,7 +195,7 @@ struct HomeView: View {
 
     private func chip(_ title: String, @ViewBuilder menu: @escaping () -> some View) -> some View {
         Menu {
-            menu
+            menu()
         } label: {
             Text(title)
                 .font(.system(size: 13, weight: .medium))

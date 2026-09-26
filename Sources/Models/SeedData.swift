@@ -4,6 +4,8 @@ import SwiftData
 /// 首次启动播种示例数据，便于用户快速了解界面效果
 enum SeedData {
 
+    /// mainContext 为主线程隔离，需在主线程执行
+    @MainActor
     static func installIfNeeded(_ container: ModelContainer) {
         let context = container.mainContext
         // 已存在数据则跳过

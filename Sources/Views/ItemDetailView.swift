@@ -36,7 +36,7 @@ struct ItemDetailView: View {
                 )
             }
             .sheet(isPresented: $showEdit) {
-                ItemEditView(mode: .edit, item: item)
+                ItemEditView(mode: .edit(item))
             }
             .sheet(isPresented: $showUnpack) {
                 UnpackSheet(item: item)
@@ -239,7 +239,9 @@ struct UnpackSheet: View {
     var body: some View {
         sheetBody(title: "拆封", tint: Color(red: 0.36, green: 0.62, blue: 0.48)) {
             item.unpack(quantity: quantity)
-            modelContext.insert(UnpackRecord(quantity: quantity, item: item))
+            let rec = UnpackRecord(quantity: quantity)
+            rec.item = item
+            modelContext.insert(rec)
             try? modelContext.save()
             dismiss()
         }
@@ -305,7 +307,9 @@ struct RestockSheet: View {
             }
             GlassCapsuleButton(title: "确认", tint: Color(red: 0.55, green: 0.65, blue: 0.48)) {
                 item.restock(quantity: quantity)
-                modelContext.insert(RestockRecord(quantity: quantity, item: item))
+                let rec = RestockRecord(quantity: quantity)
+                rec.item = item
+                modelContext.insert(rec)
                 try? modelContext.save()
                 dismiss()
             }

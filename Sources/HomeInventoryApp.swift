@@ -7,6 +7,7 @@ struct HomeInventoryApp: App {
     /// 全局共享的 SwiftData 容器，负责所有库存数据的持久化存储
     let container: ModelContainer
 
+    @MainActor
     init() {
         let schema = Schema([
             InventoryItem.self,
