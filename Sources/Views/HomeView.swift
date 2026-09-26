@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// 首页：库存总览、分类筛选、物品列表
+/// 首页：库存总览、分类筛选、物品列表（参考「有余」布局：统计卡、分区、进度条、底部筛选）
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \InventoryItem.createdAt) private var items: [InventoryItem]
@@ -45,17 +45,32 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 18) {
-                    header
+                VStack(spacing: 20) {
+                    // 搜索（展开时显示）
+                    if showSearch {
+                        searchField
+                    }
+                    // 已选筛选标签
+                    if let cat = categoryFilter {
+                        FilterChip(label: "品类：\(cat.rawValue)") { categoryFilter = nil }
+                    }
+                    if let room = roomFilter {
+                        FilterChip(label: "房间：\(room)") { roomFilter = nil }
+                    }
+
+                    // 统计卡片（两块独立分开）
                     statsRow
+
+                    // 各分区（分开呈现，区块标题右侧放辅助信息）
                     if !attentionItems.isEmpty {
-                        sectionHeader(title: "需关注", count: attentionItems.count)
+                        sectionHeader("需关注", trailing: "\(attentionItems.count) 件")
                         itemRows(attentionItems)
                     }
-                    sectionHeader(title: "库存充足", count: sufficientItems.count)
+
+                    sectionHeader("库存充足", trailing: "最近更新")
                     itemRows(sufficientItems)
 
-                    sectionHeader(title: "尚未拆封", count: unopenedItems.count)
+                    sectionHeader("尚未拆封", trailing: unopenedItems.isEmpty ? "还没有拆封记录" : "\(unopenedItems.count) 件")
                     if unopenedItems.isEmpty {
                         GlassCard {
                             Text("还没有拆封记录")
@@ -68,7 +83,11 @@ struct HomeView: View {
                         itemRows(unopenedItems)
                     }
 
-                    Spacer().frame(height: 90)
+                    // 底部：筛选 + 提示
+                    filterRow
+                    footerHint
+
+                    Spacer().frame(height: 96)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
@@ -96,37 +115,7 @@ struct HomeView: View {
         .tint(Color(red: 0.30, green: 0.55, blue: 0.42))
     }
 
-    // MARK: - 顶部
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if showSearch {
-                searchField
-            }
-            if let cat = categoryFilter {
-                FilterChip(label: "品类：\(cat.rawValue)") { categoryFilter = nil }
-            }
-            if let room = roomFilter {
-                FilterChip(label: "房间：\(room)") { roomFilter = nil }
-            }
-            HStack(spacing: 8) {
-                chip("类别") {
-                    menu(of: Category.allCases.map(\.rawValue),
-                         selected: categoryFilter?.rawValue,
-                         select: { categoryFilter = Category(rawValue: $0) })
-                }
-                chip("房间") {
-                    menu(of: availableRooms,
-                         selected: roomFilter,
-                         select: { roomFilter = $0 })
-                }
-                Spacer()
-                Text("最近更新 \(Format.shortDate(Date()))")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
+    // MARK: - 搜索
 
     private var searchField: some View {
         HStack {
@@ -169,17 +158,17 @@ struct HomeView: View {
 
     // MARK: - 区块
 
-    private func sectionHeader(title: String, count: Int) -> some View {
+    private func sectionHeader(_ title: String, trailing: String) -> some View {
         HStack {
             Text(title)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(Color(red: 0.22, green: 0.4, blue: 0.30))
             Spacer()
-            Text("\(count) 件")
+            Text(trailing)
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)
         }
-        .padding(.top, 4)
+        .padding(.top, 6)
     }
 
     private func itemRows(_ list: [InventoryItem]) -> some View {
@@ -189,6 +178,32 @@ struct HomeView: View {
                     .onTapGesture { selectedItem = item }
             }
         }
+    }
+
+    // MARK: - 底部筛选与提示
+
+    private var filterRow: some View {
+        HStack(spacing: 8) {
+            chip("类别") {
+                menu(of: Category.allCases.map(\.rawValue),
+                     selected: categoryFilter?.rawValue,
+                     select: { categoryFilter = Category(rawValue: $0) })
+            }
+            chip("房间") {
+                menu(of: availableRooms,
+                     selected: roomFilter,
+                     select: { roomFilter = $0 })
+            }
+            Spacer()
+        }
+    }
+
+    private var footerHint: some View {
+        Text("拆封后开始计算预计可用天数")
+            .font(.system(size: 12))
+            .foregroundColor(.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 4)
     }
 
     // MARK: - 筛选辅助
@@ -202,11 +217,7 @@ struct HomeView: View {
                 .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
-                .background(
-                    Capsule()
-                        .fill(.white.opacity(0.45))
-                        .background(Capsule().stroke(Color.white.opacity(0.6), lineWidth: 1))
-                )
+                .glassEffect(.clear, in: .capsule)
         }
     }
 
@@ -247,31 +258,56 @@ struct FilterChip: View {
     }
 }
 
-/// 首页物品行
+/// 首页物品行（参考「有余」：左信息 + 右状态/天数 + 底部进度条）
 struct ItemRow: View {
     let item: InventoryItem
 
+    private var progress: Double {
+        guard item.totalStock > 0 else { return 0 }
+        return min(max(Double(item.inUse) / Double(item.totalStock), 0), 1)
+    }
+
     var body: some View {
         GlassCard {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.name)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.primary)
-                    Text("\(item.category.rawValue)·\(item.location)")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                    Text("库存 \(item.totalStock)·使用中 \(item.inUse)")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
+            VStack(spacing: 10) {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item.name)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.primary)
+                        Text("\(item.category.rawValue)·\(item.location)")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Text("库存 \(item.totalStock)·使用中 \(item.inUse)")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 4) {
+                        StatusCapsule(text: item.status.title,
+                                      color: statusColor(item.status))
+                        Text("约\(item.remainingDays)天")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
+                    }
                 }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 4) {
-                    StatusCapsule(text: item.status.title,
-                                  color: statusColor(item.status))
-                    Text("约\(item.remainingDays)天")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
+                // 进度条（单独一行，与信息分开）
+                HStack(spacing: 8) {
+                    Text("已用")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color.black.opacity(0.06))
+                            Capsule()
+                                .fill(statusColor(item.status))
+                                .frame(width: geo.size.width * progress)
+                        }
+                    }
+                    .frame(height: 6)
+                    Text("\(item.inUse)/\(item.totalStock)")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
                 }
             }
             .padding(14)
