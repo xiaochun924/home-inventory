@@ -128,8 +128,8 @@ struct HomeView: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.white.opacity(0.5))
-                .background(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.6), lineWidth: 1))
+                .fill(Color.adaptiveCardFill)
+                .background(RoundedRectangle(cornerRadius: 14).stroke(Color.adaptiveCardStroke, lineWidth: 1))
         )
     }
 
@@ -163,7 +163,7 @@ struct HomeView: View {
         HStack {
             Text(title)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(Color(red: 0.22, green: 0.4, blue: 0.30))
+                .foregroundColor(Color.adaptiveTextGreen)
             Spacer()
             Text(trailing)
                 .font(.system(size: 13))

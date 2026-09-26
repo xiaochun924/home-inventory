@@ -1,5 +1,23 @@
 import SwiftUI
 
+// ===== 深色模式自适应 =====
+extension Color {
+    /// 自适应卡片/字段底色（浅色模式=半透明白，深色模式=半透明深灰）
+    static let adaptiveCardFill = Color(uiColor: UIColor { t in
+        t.userInterfaceStyle == .dark ? UIColor(white: 0.15, alpha: 0.60) : UIColor(white: 1.0, alpha: 0.50)
+    })
+    /// 自适应卡片描边
+    static let adaptiveCardStroke = Color(uiColor: UIColor { t in
+        t.userInterfaceStyle == .dark ? UIColor(white: 1.0, alpha: 0.20) : UIColor(white: 1.0, alpha: 0.60)
+    })
+    /// 自适应标题绿（浅色=深墨绿，深色=亮绿，保证两种模式下可读）
+    static let adaptiveTextGreen = Color(uiColor: UIColor { t in
+        t.userInterfaceStyle == .dark
+            ? UIColor(red: 0.58, green: 0.80, blue: 0.68)
+            : UIColor(red: 0.22, green: 0.40, blue: 0.30)
+    })
+}
+
 // ================= 液态玻璃悬浮顶栏（全局统一规范） =================
 // 规范：纯透明导航栏；左上角圆形玻璃返回按钮；中间悬浮玻璃胶囊标题；
 // 完全隐藏系统导航栏；不加白色蒙皮 / 磨砂遮挡。
@@ -26,7 +44,7 @@ struct GlassTopBar<Leading: View, Trailing: View>: View {
                 // 中间悬浮玻璃胶囊标题（官方 Liquid Glass）
                 Text(title)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Color(red: 0.22, green: 0.4, blue: 0.30))
+                    .foregroundColor(Color.adaptiveTextGreen)
                     .padding(.horizontal, 20)
                     .frame(height: 40)
                     .glassEffect(.clear, in: .capsule)

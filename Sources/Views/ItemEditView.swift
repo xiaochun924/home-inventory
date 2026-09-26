@@ -166,8 +166,8 @@ struct ItemEditView: View {
 
     private var glassBg: some View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .fill(.white.opacity(0.42))
-            .background(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.6), lineWidth: 1))
+            .fill(Color.adaptiveCardFill)
+            .background(RoundedRectangle(cornerRadius: 16).stroke(Color.adaptiveCardStroke, lineWidth: 1))
     }
 
     private func load() {
@@ -224,7 +224,7 @@ struct ItemEditView: View {
         HStack {
             Text(title)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(Color(red: 0.22, green: 0.4, blue: 0.30))
+                .foregroundColor(Color.adaptiveTextGreen)
             Spacer()
         }
         .padding(.top, 6)

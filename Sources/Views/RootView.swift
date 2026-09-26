@@ -29,10 +29,12 @@ struct RootView: View {
     }
 }
 
-/// 全应用统一背景：纯白（配合官方液态玻璃）
+/// 全应用统一背景：浅色模式纯白 / 深色模式深灰（配合官方液态玻璃）
 struct AppBackground: View {
     var body: some View {
-        Color.white.ignoresSafeArea()
+        Color(uiColor: UIColor { t in
+            t.userInterfaceStyle == .dark ? UIColor(white: 0.07, alpha: 1) : UIColor.white
+        }).ignoresSafeArea()
     }
 }
 
