@@ -13,8 +13,8 @@ extension Color {
     /// 自适应标题绿（浅色=深墨绿，深色=亮绿，保证两种模式下可读）
     static let adaptiveTextGreen = Color(uiColor: UIColor { t in
         t.userInterfaceStyle == .dark
-            ? UIColor(red: 0.58, green: 0.80, blue: 0.68)
-            : UIColor(red: 0.22, green: 0.40, blue: 0.30)
+            ? UIColor(red: 0.58, green: 0.80, blue: 0.68, alpha: 1)
+            : UIColor(red: 0.22, green: 0.40, blue: 0.30, alpha: 1)
     })
 }
 
