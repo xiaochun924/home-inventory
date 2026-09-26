@@ -27,6 +27,10 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
+      # runner 上的 Xcode 26 可能未安装 iOS 平台，先补齐再构建
+      - name: Install iOS platform
+        run: xcodebuild -downloadPlatform iOS
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
