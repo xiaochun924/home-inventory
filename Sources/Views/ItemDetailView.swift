@@ -73,6 +73,8 @@ struct ItemDetailView: View {
                     Text("\(item.totalStock)")
                         .font(.system(size: 26, weight: .bold))
                         .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
+                        .contentTransition(.numericText())
+                        .animation(.snappy(duration: 0.4), value: item.totalStock)
                     Text("库存")
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
@@ -191,6 +193,8 @@ struct ItemDetailView: View {
                     Text("预计\(item.remainingDays)天后耗尽")
                         .font(.system(size: 20, weight: .bold))
                         .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
+                        .contentTransition(.numericText())
+                        .animation(.snappy(duration: 0.4), value: item.remainingDays)
                     Spacer()
                     StatusCapsule(text: item.status.title, color: item.needsAttention ? .orange : Color(red: 0.36, green: 0.62, blue: 0.48))
                 }

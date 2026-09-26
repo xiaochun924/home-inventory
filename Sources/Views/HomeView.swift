@@ -46,16 +46,19 @@ struct HomeView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // 搜索（展开时显示）
+                    // 搜索（展开时显示，带顶部滑入过渡）
                     if showSearch {
                         searchField
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                     }
-                    // 已选筛选标签
+                    // 已选筛选标签（带缩放淡入过渡）
                     if let cat = categoryFilter {
                         FilterChip(label: "品类：\(cat.rawValue)") { categoryFilter = nil }
+                            .transition(.scale(scale: 0.7).combined(with: .opacity))
                     }
                     if let room = roomFilter {
                         FilterChip(label: "位置：\(room)") { roomFilter = nil }
+                            .transition(.scale(scale: 0.7).combined(with: .opacity))
                     }
 
                     // 统计卡片（两块独立分开）
@@ -79,6 +82,7 @@ struct HomeView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(20)
                         }
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
                     } else {
                         itemRows(unopenedItems)
                     }
@@ -91,6 +95,9 @@ struct HomeView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
+                // 筛选切换时，列表/标签平滑过渡（官方动画）
+                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: categoryFilter)
+                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: roomFilter)
             }
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -141,7 +148,9 @@ struct HomeView: View {
     private var statsRow: some View {
         HStack(spacing: 14) {
             statCard(value: "\(attentionItems.count)", label: "需要关注")
+                .animation(.snappy(duration: 0.4), value: attentionItems.count)
             statCard(value: "\(filteredItems.count)", label: "消耗品种类")
+                .animation(.snappy(duration: 0.4), value: filteredItems.count)
         }
     }
 
@@ -151,6 +160,7 @@ struct HomeView: View {
                 Text(value)
                     .font(.system(size: 30, weight: .bold))
                     .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
+                    .contentTransition(.numericText())   // 数字滚动动画
                 Text(label)
                     .font(.system(size: 13))
                     .foregroundColor(.secondary)
@@ -180,6 +190,7 @@ struct HomeView: View {
             ForEach(list) { item in
                 ItemRow(item: item)
                     .onTapGesture { selectedItem = item }
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
     }
@@ -306,6 +317,7 @@ struct ItemRow: View {
                             Capsule()
                                 .fill(statusColor(item.status))
                                 .frame(width: geo.size.width * progress)
+                                .animation(.snappy(duration: 0.5), value: progress)
                         }
                     }
                     .frame(height: 6)
