@@ -40,29 +40,10 @@ struct RootView: View {
     }
 }
 
-/// 全应用统一背景：柔和浅绿 + 光斑
+/// 全应用统一背景：纯白（配合官方液态玻璃）
 struct AppBackground: View {
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.93, green: 0.96, blue: 0.93),
-                         Color(red: 0.86, green: 0.92, blue: 0.87)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            // 柔光光斑，增强液态玻璃通透感
-            Circle()
-                .fill(Color(red: 0.7, green: 0.85, blue: 0.75).opacity(0.35))
-                .frame(width: 260, height: 260)
-                .blur(radius: 60)
-                .offset(x: -140, y: -300)
-            Circle()
-                .fill(Color.white.opacity(0.45))
-                .frame(width: 220, height: 220)
-                .blur(radius: 70)
-                .offset(x: 150, y: 280)
-        }
-        .ignoresSafeArea()
+        Color.white.ignoresSafeArea()
     }
 }
 

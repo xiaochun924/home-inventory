@@ -23,8 +23,6 @@ struct HomeInventoryApp: App {
             let memoryConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
             container = try! ModelContainer(for: schema, configurations: [memoryConfig])
         }
-        // 首次启动播种示例数据
-        SeedData.installIfNeeded(container)
     }
 
     var body: some Scene {
