@@ -19,11 +19,20 @@ struct RootView: View {
                 switch selection {
                 case .home:
                     HomeView()
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .leading).combined(with: .opacity),
+                            removal: .move(edge: .trailing).combined(with: .opacity)
+                        ))
                 case .settings:
                     SettingsView()
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                            removal: .move(edge: .leading).combined(with: .opacity)
+                        ))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.spring(response: 0.42, dampingFraction: 0.78), value: selection)
 
             // 液态玻璃底部导航
             GlassTabBar(selection: $selection)
