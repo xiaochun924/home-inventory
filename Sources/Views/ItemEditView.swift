@@ -25,9 +25,6 @@ struct ItemEditView: View {
     @State private var reminderRule = 0          // 0=按剩余天数 1=按库存数量
     @AppStorage("useHistoryPrediction") private var useHistoryPrediction = true
     @State private var enableExpiry = false
-    @State private var rooms = ["诸暨·1", "诸暨·2", "东阳·1", "东阳·2", "厨房", "卫生间"]
-    @State private var showAddRoom = false
-    @State private var newRoom = ""
 
     private let platformNames = ["淘", "京东", "抖音", "拼多多", "小红书"]
 
@@ -50,12 +47,7 @@ struct ItemEditView: View {
                     VStack(spacing: 14) {
                         field("数量 *") { stockStepper("\(totalStock) 件", onDown: decrementStock, onUp: incrementStock) }
                         field("使用中") { stockStepper("\(inUse) 件", onDown: decrementInUse, onUp: incrementInUse) }
-                        field("存储位置 *") { roomPicker }
-                        Button { showAddRoom = true } label: {
-                            Label("添加备用位置", systemImage: "plus.circle.fill")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(Color(red: 0.30, green: 0.55, blue: 0.42))
-                        }
+                        field("存储位置 *") { locationField }
                         Toggle(isOn: $isOpened) {
                             Text("已拆封")
                                 .font(.system(size: 15))
@@ -164,18 +156,6 @@ struct ItemEditView: View {
                 )
             }
         }
-        .alert("添加备用位置", isPresented: $showAddRoom) {
-            TextField("例如：卧室", text: $newRoom)
-            Button("添加") {
-                let r = newRoom.trimmingCharacters(in: .whitespaces)
-                if !r.isEmpty && !rooms.contains(r) {
-                    rooms.append(r)
-                    if location.isEmpty { location = r }
-                }
-                newRoom = ""
-            }
-            Button("取消", role: .cancel) { newRoom = "" }
-        }
         .onAppear(perform: load)
     }
 
@@ -202,7 +182,7 @@ struct ItemEditView: View {
             reminderDays = item.reminderDays
             isOpened = item.isOpened
         } else {
-            location = rooms.first ?? "诸暨·1"
+            location = ""
         }
     }
 
@@ -290,27 +270,12 @@ struct ItemEditView: View {
         }
     }
 
-    private var roomPicker: some View {
-        Menu {
-            ForEach(rooms, id: \.self) { r in
-                Button { location = r } label: {
-                    if location == r { Label(r, systemImage: "checkmark") }
-                    else { Text(r) }
-                }
-            }
-        } label: {
-            HStack {
-                Text(location.isEmpty ? "请选择" : location)
-                    .font(.system(size: 15))
-                    .foregroundColor(location.isEmpty ? .secondary : .primary)
-                Spacer()
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-            }
+    private var locationField: some View {
+        TextField("请输入存放位置", text: $location)
+            .font(.system(size: 15))
+            .foregroundColor(location.isEmpty ? .secondary : .primary)
             .padding(14)
             .background(glassBg)
-        }
     }
 
     private func stockStepper(_ valueText: String, onDown: @escaping () -> Void, onUp: @escaping () -> Void) -> some View {

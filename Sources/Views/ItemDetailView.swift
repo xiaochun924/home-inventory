@@ -13,8 +13,6 @@ struct ItemDetailView: View {
     @State private var showCustomLocation = false
     @State private var customLocation = ""
 
-    private let defaultRooms = ["诸暨·1", "诸暨·2", "东阳·1", "东阳·2", "厨房", "卫生间"]
-
     var body: some View {
         ZStack {
             AppBackground().ignoresSafeArea()
@@ -118,19 +116,9 @@ struct ItemDetailView: View {
         }
     }
 
-    /// 存放位置可修改入口：点击弹出常用位置 + 自定义
+    /// 存放位置修改入口：点击弹出自定义输入框（随时可改）
     private var locationControl: some View {
-        Menu {
-            ForEach(defaultRooms, id: \.self) { r in
-                Button { setLocation(r) } label: {
-                    if item.location == r { Label(r, systemImage: "checkmark") }
-                    else { Text(r) }
-                }
-            }
-            Button { showCustomLocation = true } label: {
-                Label("自定义位置…", systemImage: "plus.circle")
-            }
-        } label: {
+        Button { showCustomLocation = true } label: {
             HStack(spacing: 6) {
                 Text(item.location)
                     .font(.system(size: 15, weight: .medium))
