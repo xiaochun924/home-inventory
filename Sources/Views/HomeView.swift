@@ -9,7 +9,8 @@ import SwiftData
 ///  - 物品卡信息层级更清晰：品类色点、图标化库存/使用中、加粗进度条+剩余百分比
 ///  - 需关注物品整卡橙色高亮
 ///  - 顶栏随滚动连续形态变换：统计区一上移就开始收缩，滚动 10pt 完全收成玻璃胶囊
-///  - 稳定性：详情页改用标准 push（zoom 转场在拆封数据变化后返回会闪烁/闪退，已移除）
+///  - 稳定性：详情页/添加页使用标准 push 转场
+/// 注：移除 navigationTransition(.zoom/.fade) —— 该系列 API 在 CI 构建中编译失败（exit 65，#67-#70）
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \InventoryItem.createdAt) private var items: [InventoryItem]
@@ -163,12 +164,11 @@ struct HomeView: View {
                 }
                 .frame(height: 64, alignment: .top)
             }
-            // 添加物品：二级页面（push），淡入打开 / 淡出关闭
+            // 添加物品：二级页面（push）
             .navigationDestination(isPresented: $showAddSheet) {
                 ItemEditView(mode: .add)
-                    .navigationTransition(.fade)
             }
-            // 物品详情：二级页面（push），标准转场（稳定，避免 zoom 与拆封数据变化竞争）
+            // 物品详情：二级页面（push），标准转场（稳定）
             .navigationDestination(item: $selectedItem) { item in
                 ItemDetailView(item: item)
             }
