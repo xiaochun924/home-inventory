@@ -2,11 +2,10 @@ import SwiftUI
 import SwiftData
 
 /// 物品详情页：库存信息、拆封/补货、消耗预测、消耗与提醒
-/// 布局参考「有余」详情样式：极简玻璃顶栏 + 头部大标题（商品名/品类 | 库存大字）+
+/// 布局参考「有余」详情样式：极简顶栏 + 头部大标题（商品名/品类 | 库存大字）+
 /// 信息卡两列（存放位置 | 最近拆封+拆封进度）+ 拆封/补货按钮 + 预测/提醒卡片
-/// 按钮配色对齐截图：拆封=浅色胶囊+深绿文字；补货=深绿胶囊+白字
+/// 按钮配色对齐截图：拆封=浅色纯色胶囊+深绿文字；补货=深绿纯色胶囊+白字（均非液态玻璃）
 /// 稳定性：拆封/补货确认先 dismiss 再改模型，数量上限 999，避免返回主页闪烁/闪退
-/// 注：移除 navigationTransition(.fade) —— 该 API 在 CI 构建中编译失败（exit 65）
 struct ItemDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -40,7 +39,7 @@ struct ItemDetailView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                // 极简玻璃顶栏（参考截图）：左返回 / 右编辑，中间留空，标题在内容区
+                // 极简顶栏（参考截图）：左返回 / 右编辑，中间留空，标题在内容区
                 GlassEffectContainer {
                     HStack {
                         GlassCircleButton(icon: "chevron.left") { dismiss() }
@@ -169,7 +168,10 @@ struct ItemDetailView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .glassEffect(.clear, in: .capsule)
+            .background(
+                Capsule().fill(Color.adaptiveCardFill)
+                    .overlay(Capsule().stroke(Color.adaptiveCardStroke, lineWidth: 1))
+            )
         }
     }
 
@@ -187,21 +189,21 @@ struct ItemDetailView: View {
         try? modelContext.save()
     }
 
-    // MARK: - 拆封 / 补货按钮（配色对齐截图）
+    // MARK: - 拆封 / 补货按钮（配色对齐截图，纯色胶囊非液态玻璃）
 
     private var actionButtons: some View {
         HStack(spacing: 14) {
-            // 拆封：浅色胶囊 + 深绿文字（截图样式）
+            // 拆封：纯色浅底胶囊 + 深绿文字（截图样式）
             Button { showUnpack = true } label: {
                 Text("拆封")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(Color(red: 0.13, green: 0.35, blue: 0.29))
                     .frame(maxWidth: .infinity)
                     .frame(height: 48)
-                    .glassEffect(.regular.tint(Color(red: 0.93, green: 0.95, blue: 0.94)).interactive(), in: .capsule)
+                    .background(Capsule().fill(Color(red: 0.93, green: 0.95, blue: 0.94)))
             }
-            // 补货：深绿胶囊 + 白字（截图样式）
-            GlassCapsuleButton(title: "补货", tint: Color(red: 0.20, green: 0.42, blue: 0.37)) {
+            // 补货：纯色深绿胶囊 + 白字（截图样式）
+            SolidCapsuleButton(title: "补货", tint: Color(red: 0.20, green: 0.42, blue: 0.37)) {
                 showRestock = true
             }
         }
@@ -354,7 +356,7 @@ struct UnpackSheet: View {
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)
             QuantityField(value: $quantity, tint: tint)
-            GlassCapsuleButton(title: "确认", tint: tint, action: confirm)
+            SolidCapsuleButton(title: "确认", tint: tint, action: confirm)
             Spacer()
         }
         .padding(20)
@@ -378,7 +380,7 @@ struct RestockSheet: View {
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)
             QuantityField(value: $quantity, tint: Color(red: 0.55, green: 0.65, blue: 0.48))
-            GlassCapsuleButton(title: "确认", tint: Color(red: 0.45, green: 0.58, blue: 0.33)) {
+            SolidCapsuleButton(title: "确认", tint: Color(red: 0.45, green: 0.58, blue: 0.33)) {
                 let qty = min(max(1, quantity), 999)
                 dismiss()
                 item.restock(quantity: qty)
