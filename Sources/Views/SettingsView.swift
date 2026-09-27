@@ -47,7 +47,7 @@ struct SettingsView: View {
                                 }
                             }
                             Divider().opacity(0.4)
-                            // 直接打开文件选择器（不从弹窗里再弹，避免选择器无法交互）
+                            // 直接打开系统文件选择器（UIKit 原生，绕开 SwiftUI fileImporter 的选中 bug）
                             Button(action: { showImporter = true }) {
                                 HStack {
                                     Text("恢复数据")
@@ -132,35 +132,13 @@ struct SettingsView: View {
             }
             showMessage = true
         }
-        // 用 .data 放宽可选文件类型：避免部分文件/目录被系统置灰无法选中；
-        // 是不是本应用备份的 JSON，由 BackupManager 解码校验
-        .fileImporter(isPresented: $showImporter,
-                      allowedContentTypes: [.data],
-                      allowsMultipleSelection: false) { result in
-            // 注意：fileImporter 回调返回 Result<[URL], Error>，即使单选也是数组
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else {
-                    messageText = "未选择文件"
-                    showMessage = true
-                    return
-                }
-                let didAccess = url.startAccessingSecurityScopedResource()
-                defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-                do {
-                    let data = try Data(contentsOf: url)
-                    let restored = try BackupManager.decode(data)
-                    pendingRestore = restored
-                    pendingCount = restored.count
-                    confirmApply = true
-                } catch {
-                    messageText = "恢复失败：\(error.localizedDescription)"
-                    showMessage = true
-                }
-            case .failure(let error):
-                messageText = "选择文件失败：\(error.localizedDescription)"
-                showMessage = true
-            }
+        // 恢复：UIKit 原生文件选择器（全屏展示）
+        .fullScreenCover(isPresented: $showImporter) {
+            DocumentPicker(
+                allowedContentTypes: [.data],
+                onPicked: handlePicked,
+                onCancel: { showImporter = false }
+            )
         }
     }
 
@@ -182,6 +160,21 @@ struct SettingsView: View {
             showExporter = true
         } catch {
             messageText = "备份失败：\(error.localizedDescription)"
+            showMessage = true
+        }
+    }
+
+    /// 选择文件后：读取并解码（asCopy 已把文件复制进沙盒，无需安全作用域访问），成功后等用户确认
+    private func handlePicked(_ url: URL) {
+        showImporter = false
+        do {
+            let data = try Data(contentsOf: url)
+            let restored = try BackupManager.decode(data)
+            pendingRestore = restored
+            pendingCount = restored.count
+            confirmApply = true
+        } catch {
+            messageText = "恢复失败：\(error.localizedDescription)"
             showMessage = true
         }
     }
