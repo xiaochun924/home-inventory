@@ -8,7 +8,7 @@ import SwiftData
 ///  - 分区标题带计数胶囊（颜色随分区语义）
 ///  - 物品卡信息层级更清晰：品类色点、图标化库存/使用中、加粗进度条+剩余百分比
 ///  - 需关注物品整卡橙色高亮
-///  - 顶栏随滚动连续形态变换：统计区一上移就开始收缩，统计区顶端到顶时完全收成玻璃胶囊
+///  - 顶栏随滚动连续形态变换：统计区一上移就开始收缩，滚动 40pt 完全收成玻璃胶囊
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \InventoryItem.createdAt) private var items: [InventoryItem]
@@ -107,11 +107,11 @@ struct HomeView: View {
             }
             .scrollIndicators(.hidden)
             // 滚动偏移连续读取：统计区一上移即开始收缩
-            // 收缩进度 = offset / 72（72 = 顶栏 64 + 顶部间距 8，统计区顶端到顶时完全收起）
+            // 收缩进度 = offset / 40（滚动 40pt 即完全收起，收缩更快）
             .onScrollGeometryChange(for: CGFloat.self) { geo in
                 geo.contentOffset.y
             } action: { _, offset in
-                let p = min(max(offset / 72, 0), 1)
+                let p = min(max(offset / 40, 0), 1)
                 if abs(p - titleProgress) > 0.001 {
                     titleProgress = p
                 }
