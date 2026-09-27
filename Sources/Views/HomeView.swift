@@ -8,7 +8,7 @@ import SwiftData
 ///  - 分区标题带计数胶囊（颜色随分区语义）
 ///  - 物品卡信息层级更清晰：品类色点、图标化库存/使用中、加粗进度条+剩余百分比
 ///  - 需关注物品整卡橙色高亮
-///  - 一滑动即开始收缩：大标题收成玻璃胶囊顶栏（弹簧动画，无溢出遮挡）
+///  - 顶栏随滚动比例连续形态变换：统计区一上移就开始收缩，40pt 内完全收成玻璃胶囊
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \InventoryItem.createdAt) private var items: [InventoryItem]
@@ -19,7 +19,8 @@ struct HomeView: View {
     @State private var showSearch = false
     @State private var showAddSheet = false
     @State private var selectedItem: InventoryItem? = nil
-    @State private var isTitleCollapsed = false
+    /// 顶栏收缩进度：0=大标题展开，1=完全收成胶囊（随滚动偏移连续变化）
+    @State private var titleProgress: CGFloat = 0
 
     private var availableRooms: [String] {
         Array(Set(items.map(\.location))).sorted()
@@ -100,34 +101,43 @@ struct HomeView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
+                // 读取滚动偏移（统计区一上移即驱动收缩进度）
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(
+                            key: ScrollOffsetKey.self,
+                            value: -geo.frame(in: .named("homeScroll")).origin.y
+                        )
+                    }
+                )
                 // 筛选切换时平滑过渡
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: categoryFilter)
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: roomFilter)
             }
             .scrollIndicators(.hidden)
-            // 一滑动（偏移 > 0.5pt）即开始收缩
-            .onScrollGeometryChange(for: Bool.self) { geo in
-                geo.contentOffset.y > 0.5
-            } action: { _, collapsed in
-                if collapsed != isTitleCollapsed {
-                    isTitleCollapsed = collapsed
+            .coordinateSpace(name: "homeScroll")
+            .onPreferenceChange(ScrollOffsetKey.self) { offset in
+                // 收缩进度：滚动 0→40pt 线性完成（统计区到达顶栏位置即完全收起）
+                let p = min(max(offset / 40, 0), 1)
+                if abs(p - titleProgress) > 0.001 {
+                    titleProgress = p
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                // 固定高度 64pt 顶栏容器：大标题与胶囊双态形态变换，内容不溢出、不遮挡下方
+                // 固定高度 64pt 顶栏容器：大标题 ↔ 玻璃胶囊随滚动比例连续变换，不溢出、不遮挡
                 ZStack {
-                    // 胶囊标题（下滑后居中显示，与详情页顶栏同款）
+                    // 胶囊标题（随进度淡入放大）
                     Text("家庭库存")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(Color.adaptiveTextGreen)
                         .padding(.horizontal, 20)
                         .frame(height: 40)
                         .glassEffect(.clear, in: .capsule)
-                        .opacity(isTitleCollapsed ? 1 : 0)
-                        .scaleEffect(isTitleCollapsed ? 1 : 0.85)
+                        .opacity(titleProgress)
+                        .scaleEffect(0.85 + 0.15 * titleProgress)
 
-                    // 大标题 + 副标题（顶部左对齐，字号收紧确保完全装进 64pt）
+                    // 大标题 + 副标题（顶部左对齐，随进度淡出缩小，字号收紧确保不溢出）
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("家庭库存")
@@ -141,8 +151,8 @@ struct HomeView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 4)
-                    .opacity(isTitleCollapsed ? 0 : 1)
-                    .scaleEffect(isTitleCollapsed ? 0.92 : 1, anchor: .topLeading)
+                    .opacity(1 - titleProgress)
+                    .scaleEffect(1 - 0.08 * titleProgress, anchor: .topLeading)
 
                     // 右上搜索按钮（两态共用，位置固定）
                     HStack {
@@ -158,7 +168,6 @@ struct HomeView: View {
                     .padding(.top, 6)
                 }
                 .frame(height: 64, alignment: .top)
-                .animation(.spring(response: 0.35, dampingFraction: 0.9), value: isTitleCollapsed)
             }
             // 添加物品：二级页面（push）
             .navigationDestination(isPresented: $showAddSheet) {
@@ -344,6 +353,14 @@ struct HomeView: View {
                 }
             }
         }
+    }
+}
+
+/// 滚动偏移读取（PreferenceKey，配合 coordinateSpace "homeScroll"）
+private struct ScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
