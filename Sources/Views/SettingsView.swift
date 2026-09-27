@@ -128,8 +128,14 @@ struct SettingsView: View {
             .fileImporter(isPresented: $showImporter,
                           allowedContentTypes: [.data],
                           allowsMultipleSelection: false) { result in
+                // 注意：fileImporter 回调返回 Result<[URL], Error>，即使单选也是数组
                 switch result {
-                case .success(let url):
+                case .success(let urls):
+                    guard let url = urls.first else {
+                        messageText = "未选择文件"
+                        showMessage = true
+                        return
+                    }
                     let didAccess = url.startAccessingSecurityScopedResource()
                     defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
                     do {
