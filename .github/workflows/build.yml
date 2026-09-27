@@ -1,8 +1,5 @@
-name: iOS Build (Unsigned IPA)
+name: home-inventory
 
-# 产出未签名的 .ipa，供你下载后用自有证书重签名
-# 每次有新 commit（推送 main / PR main）自动触发；也支持手动触发
-# 注意：本仓库 project.yml 与 Sources/ 位于仓库根目录（非子目录）
 on:
   push:
     branches: [main]
@@ -17,9 +14,7 @@ concurrency:
 jobs:
   build:
     name: Build HomeInventory
-    # iOS 26 SDK / 液态玻璃需要 Xcode 26；显式选 26.6（macos-26 镜像默认版，含 iOS 26.5 SDK）
     runs-on: macos-latest
-    # 发布 Release 附件需要 contents: write（GITHUB_TOKEN 自动注入）
     permissions:
       contents: write
 
@@ -32,7 +27,7 @@ jobs:
         with:
           xcode-version: '26.6'
 
-      - name: 查看 Xcode 与 iOS SDK 版本
+      - name: 查看 Xcode
         run: |
           xcodebuild -version
           xcodebuild -showsdks | grep -i "ios" || true
@@ -48,10 +43,9 @@ jobs:
         run: |
           xcodegen generate
 
-      - name: 编译（iOS 真机 SDK / Release / 关闭签名）
+      - name: 编译
         run: |
           set -o pipefail
-          # 不截断输出：编译错误详情必须完整留在 Actions 日志里，方便排查
           xcodebuild \
             -project HomeInventory.xcodeproj \
             -scheme HomeInventory \
@@ -64,7 +58,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             clean build
 
-      - name: 打包未签名 IPA
+      - name: 打包 IPA
         run: |
           APP=$(find build -type d -name "*.app" | head -1)
           if [ -z "$APP" ]; then
@@ -76,22 +70,19 @@ jobs:
           zip -qr HomeInventory-unsigned.ipa Payload
           ls -lh HomeInventory-unsigned.ipa
 
-      # Actions artifact 下载固定会再包一层 zip；Release 附件下载得到的就是 .ipa 原文件。
-      # 固定 tag 的 release 每次构建覆盖更新，Releases 页随时可下最新未签名包。
-      - name: 发布未签名 IPA 到 Release（直接下载 .ipa 原文件）
+      - name: 发布 IPA 到 Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           IPA=HomeInventory-unsigned.ipa
           RELEASE_TAG="unsigned-ipa"
-          # 幂等：重复构建先删掉旧 release（含旧 tag），再建新的覆盖
           gh release delete "$RELEASE_TAG" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$RELEASE_TAG" \
-            --title "更新最新版本" \
+            --title "home-inventory" \
             --notes "自签版本" \
             "$IPA"
 
-      - name: 上传未签名 IPA（zip 备份）
+      - name: 上传 IPA
         uses: actions/upload-artifact@v4
         with:
           name: HomeInventory-unsigned-ipa
