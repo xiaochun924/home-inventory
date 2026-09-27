@@ -2,7 +2,8 @@ import SwiftUI
 import SwiftData
 
 /// 分区库存管理页：显示某个区域的全部物品，独立管理（拆封/补货/详情）
-/// 入口在底部 tab 栏（设置页添加区域后自动出现）；顶栏右上角 + 胶囊可直接添加该区域物品
+/// 入口在底部 tab 栏（设置页添加区域后自动出现）
+/// 顶栏与主页一致：右上角 + 胶囊（添加该区域物品）+ 搜索按钮（区域内搜索）
 /// 布局复用主页卡片样式：概览条 + 物品卡列表 + zoom 详情转场
 struct AreaInventoryView: View {
     @Environment(\.modelContext) private var modelContext
@@ -12,11 +13,17 @@ struct AreaInventoryView: View {
 
     @State private var selectedItem: InventoryItem? = nil
     @State private var showAdd = false
+    @State private var showSearch = false
+    @State private var searchText = ""
     @Namespace private var namespace
 
-    /// 该区域的物品
+    /// 该区域的物品（支持搜索过滤）
     private var items: [InventoryItem] {
-        allItems.filter { $0.location == area }
+        var list = allItems.filter { $0.location == area }
+        if !searchText.isEmpty {
+            list = list.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        }
+        return list
     }
 
     private var attentionCount: Int { items.filter { $0.status == .attention }.count }
@@ -26,6 +33,12 @@ struct AreaInventoryView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    // 搜索（展开时显示，带顶部滑入过渡，主页同款）
+                    if showSearch {
+                        searchField
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+
                     // 该区域概览
                     overviewCard
 
@@ -45,13 +58,21 @@ struct AreaInventoryView: View {
             .scrollIndicators(.hidden)
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                // 顶栏：区域名 + 右上角独立 + 胶囊（添加该区域物品，位置自动预填）
+                // 顶栏：区域名 + 右上角按钮组（+ 胶囊 + 搜索，与主页一致）
                 GlassTopBar(
                     title: area,
                     trailing: {
-                        SolidAddCapsule {
-                            pendingAddLocation = area
-                            showAdd = true
+                        HStack(spacing: 10) {
+                            SolidAddCapsule {
+                                pendingAddLocation = area
+                                showAdd = true
+                            }
+                            GlassCircleButton(icon: showSearch ? "xmark" : "magnifyingglass") {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    showSearch.toggle()
+                                    if !showSearch { searchText = "" }
+                                }
+                            }
                         }
                     }
                 )
@@ -67,6 +88,23 @@ struct AreaInventoryView: View {
             }
         }
         .tint(Color(red: 0.30, green: 0.55, blue: 0.42))
+    }
+
+    // MARK: - 搜索（主页同款）
+
+    private var searchField: some View {
+        HStack {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+            TextField("搜索物品", text: $searchText)
+                .font(.system(size: 15))
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.adaptiveCardFill)
+                .background(RoundedRectangle(cornerRadius: 14).stroke(Color.adaptiveCardStroke, lineWidth: 1))
+        )
     }
 
     // MARK: - 概览
@@ -148,19 +186,21 @@ struct AreaInventoryView: View {
                 Image(systemName: "mappin.and.ellipse")
                     .font(.system(size: 26))
                     .foregroundColor(.secondary)
-                Text("「\(area)」还没有物品")
+                Text(searchText.isEmpty ? "「\(area)」还没有物品" : "没有找到「\(searchText)」")
                     .font(.system(size: 14))
                     .foregroundColor(.secondary)
-                Button {
-                    pendingAddLocation = area
-                    showAdd = true
-                } label: {
-                    Text("添加物品到此区域")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 7)
-                        .background(Capsule().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
+                if searchText.isEmpty {
+                    Button {
+                        pendingAddLocation = area
+                        showAdd = true
+                    } label: {
+                        Text("添加物品到此区域")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 7)
+                            .background(Capsule().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
+                    }
                 }
             }
             .frame(maxWidth: .infinity)
