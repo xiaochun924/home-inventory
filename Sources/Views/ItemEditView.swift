@@ -46,8 +46,8 @@ struct ItemEditView: View {
                     // 板块二：库存与位置
                     sectionHeader("库存与位置")
                     VStack(spacing: 14) {
-                        field("数量 *") { stockStepper("\(totalStock) 件", onDown: decrementStock, onUp: incrementStock) }
-                        field("使用中") { stockStepper("\(inUse) 件", onDown: decrementInUse, onUp: incrementInUse) }
+                        field("数量 *") { stockInput($totalStock) }
+                        field("使用中") { stockInput($inUse) }
                         field("存储位置 *") {
                             VStack(alignment: .leading, spacing: 10) {
                                 locationField
@@ -282,6 +282,30 @@ struct ItemEditView: View {
         }
     }
 
+    /// 数量输入：可手动输入数字（数字键盘），也保留 +/- 步进按钮
+    private func stockInput(_ value: Binding<Int>) -> some View {
+        HStack(spacing: 10) {
+            TextField("0", text: Binding(
+                get: { "\(value.wrappedValue)" },
+                set: { newValue in
+                    // 只保留数字字符，空输入视为 0
+                    let digits = newValue.filter(\.isNumber)
+                    value.wrappedValue = Int(digits) ?? 0
+                }
+            ))
+            .keyboardType(.numberPad)
+            .font(.system(size: 15, weight: .medium))
+            Text("件")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+            Spacer()
+            Button { if value.wrappedValue > 0 { value.wrappedValue -= 1 } } label: { stepIcon("minus") }
+            Button { value.wrappedValue += 1 } label: { stepIcon("plus") }
+        }
+        .padding(10)
+        .background(glassBg)
+    }
+
     private func stockStepper(_ valueText: String, onDown: @escaping () -> Void, onUp: @escaping () -> Void) -> some View {
         HStack {
             Text(valueText)
@@ -302,10 +326,6 @@ struct ItemEditView: View {
             .background(Circle().fill(Color(red: 0.36, green: 0.62, blue: 0.48).opacity(0.15)))
     }
 
-    private func incrementStock() { totalStock += 1 }
-    private func decrementStock() { if totalStock > 0 { totalStock -= 1 } }
-    private func incrementInUse() { inUse += 1 }
-    private func decrementInUse() { if inUse > 0 { inUse -= 1 } }
     private func incrementAvg() { avgConsumeDays += 1 }
     private func decrementAvg() { if avgConsumeDays > 1 { avgConsumeDays -= 1 } }
     private func incrementRemind() { reminderDays += 1 }
