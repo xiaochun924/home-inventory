@@ -3,13 +3,14 @@ import SwiftData
 
 /// 首页：库存总览、分类筛选、物品列表
 /// 布局重构（参考「有余」结构，增强可视性）：
-///  - 可见化卡片：浅色填充 + 描边 + 柔和投影，不再与白底融为一体
+///  - 可见化卡片：浅色填充 + 描边 + 柔和投影，深色模式自动转深灰卡片
 ///  - 顶部三项概览条：需要关注 / 消耗品种类 / 尚未拆封
 ///  - 分区标题带计数胶囊（颜色随分区语义）
 ///  - 物品卡信息层级更清晰：品类色点、图标化库存/使用中、加粗进度条+剩余百分比
 ///  - 需关注物品整卡橙色高亮
 ///  - 顶栏随滚动连续形态变换：统计区一上移就开始收缩，滚动 10pt 完全收成玻璃胶囊
 ///  - 状态胶囊：主页使用纯色胶囊（非液态玻璃），颜色按需关注/充足/未拆封区分
+///  - 外观：跟随系统深浅色，背景/卡片/分隔线/轨道均自适应
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \InventoryItem.createdAt) private var items: [InventoryItem]
@@ -232,7 +233,7 @@ struct HomeView: View {
 
     private var statDivider: some View {
         Rectangle()
-            .fill(Color.black.opacity(0.06))
+            .fill(Color.adaptiveSeparator)
             .frame(width: 1, height: 34)
     }
 
@@ -371,7 +372,7 @@ struct FilterChip: View {
     }
 }
 
-/// 首页可见化卡片：浅色填充 + 描边 + 柔和投影（白底上可清晰辨认）
+/// 首页可见化卡片：浅色填充 + 描边 + 柔和投影（白底上可清晰辨认），深色自动转深灰卡片
 struct HomeCard<Content: View>: View {
     var emphasized: Bool = false
     @ViewBuilder var content: () -> Content
@@ -381,13 +382,11 @@ struct HomeCard<Content: View>: View {
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(emphasized
-                          ? Color(red: 1.00, green: 0.96, blue: 0.93)   // 需关注：浅橙
-                          : Color(red: 0.97, green: 0.985, blue: 0.97)) // 普通：近白浅绿
+                    .fill(Color.adaptiveCardBackground(emphasized: emphasized))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                    .stroke(Color.adaptiveSeparator, lineWidth: 1)
             )
             .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
     }
@@ -448,7 +447,7 @@ struct ItemRow: View {
                 HStack(spacing: 8) {
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
-                            Capsule().fill(Color.black.opacity(0.07))
+                            Capsule().fill(Color.adaptiveTrack)
                             Capsule()
                                 .fill(statusColor(item.status))
                                 .frame(width: geo.size.width * progress)
