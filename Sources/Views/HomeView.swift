@@ -10,6 +10,7 @@ import SwiftData
 ///  - 需关注物品整卡橙色高亮
 ///  - 顶栏随滚动连续形态变换：统计区一上移就开始收缩，滚动 10pt 完全收成玻璃胶囊
 ///  - 状态胶囊：主页使用纯色胶囊（非液态玻璃），颜色按需关注/充足/未拆封区分
+///  - 类别/位置筛选固定在底部 safeAreaInset，与 tab 栏同一层级（不随内容滚动）
 ///  - 外观：跟随系统深浅色，背景/卡片/分隔线/轨道均自适应
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
@@ -95,8 +96,6 @@ struct HomeView: View {
                         itemRows(unopenedItems)
                     }
 
-                    // 底部：筛选 + 提示
-                    filterRow
                     footerHint
 
                     Spacer().frame(height: 96)
@@ -163,6 +162,17 @@ struct HomeView: View {
                     .padding(.top, 6)
                 }
                 .frame(height: 64, alignment: .top)
+            }
+            // 类别/位置筛选：固定在底部，与 tab 栏同一层级（不随内容滚动）
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                filterRow
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(
+                        Rectangle()
+                            .fill(Color.adaptiveCardBackground(emphasized: false))
+                            .overlay(Rectangle().frame(height: 1).foregroundColor(Color.adaptiveSeparator), alignment: .top)
+                    )
             }
             // 添加物品：二级页面（push）
             .navigationDestination(isPresented: $showAddSheet) {
