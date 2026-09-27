@@ -2,18 +2,18 @@ import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 
-/// 设置页：区域管理、备份与恢复、数据管理
+/// 设置页：区域管理（可排序）、备份与恢复、数据管理
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var items: [InventoryItem]
-    @Query(sort: \InventoryArea.createdAt) private var areas: [InventoryArea]
+    @Query(sort: \InventoryArea.sortOrder) private var areas: [InventoryArea]
 
     @State private var showClearConfirm = false
     @State private var showExporter = false
     @State private var exportDocument: BackupDocument?
     @State private var confirmApply = false
     @State private var pendingRestore: [InventoryItem] = []
-    @State private var pendingAreas: [String] = []
+    @State private var pendingAreas: [AreaDTO] = []
     @State private var pendingCount = 0
     @State private var showMessage = false
     @State private var messageText = ""
@@ -35,12 +35,12 @@ struct SettingsView: View {
                         .padding(16)
                     }
 
-                    // 区域管理：添加区域后底部导航出现对应分区入口
+                    // 区域管理：添加区域后底部导航出现对应分区入口；↑↓ 可调整顺序
                     GlassCard {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("区域管理")
                                 .font(.system(size: 16, weight: .semibold))
-                            Text("添加区域后，底部导航会显示该区域的库存管理入口，可分别管理各地点库存。")
+                            Text("添加区域后，底部导航会显示该区域的库存管理入口；第一个区域为默认进入页，可用 ↑↓ 调整顺序。")
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary)
                             if areas.isEmpty {
@@ -65,6 +65,24 @@ struct SettingsView: View {
                                         Text("\(items.filter { $0.location == area.name }.count) 件")
                                             .font(.system(size: 12))
                                             .foregroundColor(.secondary)
+                                        // 上移
+                                        Button {
+                                            moveArea(area, offset: -1)
+                                        } label: {
+                                            Image(systemName: "chevron.up")
+                                                .font(.system(size: 12, weight: .semibold))
+                                                .foregroundColor(areas.first?.id == area.id ? Color.gray.opacity(0.3) : Color(red: 0.36, green: 0.62, blue: 0.48))
+                                        }
+                                        .disabled(areas.first?.id == area.id)
+                                        // 下移
+                                        Button {
+                                            moveArea(area, offset: 1)
+                                        } label: {
+                                            Image(systemName: "chevron.down")
+                                                .font(.system(size: 12, weight: .semibold))
+                                                .foregroundColor(areas.last?.id == area.id ? Color.gray.opacity(0.3) : Color(red: 0.36, green: 0.62, blue: 0.48))
+                                        }
+                                        .disabled(areas.last?.id == area.id)
                                         Button {
                                             deleteArea(area)
                                         } label: {
@@ -96,7 +114,7 @@ struct SettingsView: View {
                         Button("添加") { addArea() }
                         Button("取消", role: .cancel) { newAreaName = "" }
                     } message: {
-                        Text("添加后底部导航会出现该区域的库存管理入口。")
+                        Text("添加后底部导航会出现该区域的库存管理入口，并自动设为默认进入页。")
                     }
 
                     GlassCard {
@@ -130,7 +148,7 @@ struct SettingsView: View {
                                         .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
                                 }
                             }
-                            Text("备份导出为 JSON 文件（含区域）；恢复会用备份内容替换当前全部数据。")
+                            Text("备份导出为 JSON 文件（含区域及顺序）；恢复会用备份内容替换当前全部数据。")
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary)
                         }
@@ -172,7 +190,7 @@ struct SettingsView: View {
                         Text("所有物品、区域、拆封与补货记录将被永久删除，且不可恢复。")
                     }
 
-                    Text("家庭库存管理 v1.0\n基于 Swift 6 · SwiftData · 液态玻璃设计")
+                    Text("家庭库存管理 v1.1\n基于 Swift 6 · SwiftData · 液态玻璃设计")
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -221,7 +239,8 @@ struct SettingsView: View {
     private func addArea() {
         let trimmed = newAreaName.trimmingCharacters(in: .whitespaces)
         if !trimmed.isEmpty && !areas.contains(where: { $0.name == trimmed }) {
-            modelContext.insert(InventoryArea(name: trimmed))
+            let nextOrder = (areas.map(\.sortOrder).max() ?? -1) + 1
+            modelContext.insert(InventoryArea(name: trimmed, sortOrder: nextOrder))
             try? modelContext.save()
         }
         newAreaName = ""
@@ -229,6 +248,18 @@ struct SettingsView: View {
 
     private func deleteArea(_ area: InventoryArea) {
         modelContext.delete(area)
+        try? modelContext.save()
+    }
+
+    /// 上移/下移：交换相邻两个区域的 sortOrder，底部导航顺序随之变化
+    private func moveArea(_ area: InventoryArea, offset: Int) {
+        guard let idx = areas.firstIndex(where: { $0.id == area.id }) else { return }
+        let target = idx + offset
+        guard areas.indices.contains(target) else { return }
+        let other = areas[target]
+        let tmp = area.sortOrder
+        area.sortOrder = other.sortOrder
+        other.sortOrder = tmp
         try? modelContext.save()
     }
 
@@ -265,8 +296,8 @@ struct SettingsView: View {
         for item in items { modelContext.delete(item) }
         for area in areas { modelContext.delete(area) }
         try? modelContext.save()
-        for areaName in pendingAreas {
-            modelContext.insert(InventoryArea(name: areaName))
+        for areaDTO in pendingAreas {
+            modelContext.insert(InventoryArea(name: areaDTO.name, sortOrder: areaDTO.sortOrder))
         }
         for item in pendingRestore { modelContext.insert(item) }
         try? modelContext.save()
