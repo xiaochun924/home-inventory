@@ -56,7 +56,16 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            clean build
+            clean build 2>&1 | tee build_log.txt
+
+      - name: 上传编译日志（失败时自动归档，便于诊断）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build_log.txt
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: 打包 IPA
         run: |
