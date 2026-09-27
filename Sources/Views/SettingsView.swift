@@ -2,19 +2,23 @@ import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 
-/// 设置页：备份与恢复、数据管理
+/// 设置页：区域管理、备份与恢复、数据管理
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var items: [InventoryItem]
+    @Query(sort: \InventoryArea.createdAt) private var areas: [InventoryArea]
 
     @State private var showClearConfirm = false
     @State private var showExporter = false
     @State private var exportDocument: BackupDocument?
     @State private var confirmApply = false
     @State private var pendingRestore: [InventoryItem] = []
+    @State private var pendingAreas: [String] = []
     @State private var pendingCount = 0
     @State private var showMessage = false
     @State private var messageText = ""
+    @State private var showAddArea = false
+    @State private var newAreaName = ""
 
     var body: some View {
         NavigationStack {
@@ -29,6 +33,70 @@ struct SettingsView: View {
                             statRow("尚未拆封", "\(items.filter { !$0.isOpened }.count)")
                         }
                         .padding(16)
+                    }
+
+                    // 区域管理：添加区域后底部导航出现对应分区入口
+                    GlassCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("区域管理")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("添加区域后，底部导航会显示该区域的库存管理入口，可分别管理各地点库存。")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                            if areas.isEmpty {
+                                HStack {
+                                    Image(systemName: "location")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.secondary)
+                                    Text("还没有区域")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 4)
+                            } else {
+                                ForEach(areas) { area in
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "location.fill")
+                                            .font(.system(size: 13))
+                                            .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                        Text(area.name)
+                                            .font(.system(size: 15, weight: .medium))
+                                        Spacer()
+                                        Text("\(items.filter { $0.location == area.name }.count) 件")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.secondary)
+                                        Button {
+                                            deleteArea(area)
+                                        } label: {
+                                            Image(systemName: "trash")
+                                                .font(.system(size: 13))
+                                                .foregroundColor(.red)
+                                        }
+                                    }
+                                }
+                            }
+                            Divider().opacity(0.4)
+                            Button {
+                                showAddArea = true
+                            } label: {
+                                HStack {
+                                    Text("添加区域")
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                    Spacer()
+                                    Image(systemName: "plus")
+                                        .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                }
+                            }
+                        }
+                        .padding(16)
+                    }
+                    .alert("添加区域", isPresented: $showAddArea) {
+                        TextField("区域名称，如：东阳", text: $newAreaName)
+                        Button("添加") { addArea() }
+                        Button("取消", role: .cancel) { newAreaName = "" }
+                    } message: {
+                        Text("添加后底部导航会出现该区域的库存管理入口。")
                     }
 
                     GlassCard {
@@ -62,7 +130,7 @@ struct SettingsView: View {
                                         .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
                                 }
                             }
-                            Text("备份导出为 JSON 文件；恢复会用备份内容替换当前全部数据。")
+                            Text("备份导出为 JSON 文件（含区域）；恢复会用备份内容替换当前全部数据。")
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary)
                         }
@@ -73,7 +141,7 @@ struct SettingsView: View {
                         Button("取消", role: .cancel) { pendingRestore = [] }
                         Button("恢复", role: .destructive) { applyRestore() }
                     } message: {
-                        Text("备份中共 \(pendingCount) 件物品，将替换当前全部数据（物品与记录）。")
+                        Text("备份中共 \(pendingCount) 件物品、\(pendingAreas.count) 个区域，将替换当前全部数据（物品与记录）。")
                     }
 
                     GlassCard {
@@ -101,7 +169,7 @@ struct SettingsView: View {
                             clearAll()
                         }
                     } message: {
-                        Text("所有物品、拆封与补货记录将被永久删除，且不可恢复。")
+                        Text("所有物品、区域、拆封与补货记录将被永久删除，且不可恢复。")
                     }
 
                     Text("家庭库存管理 v1.0\n基于 Swift 6 · SwiftData · 液态玻璃设计")
@@ -148,9 +216,27 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - 区域管理
+
+    private func addArea() {
+        let trimmed = newAreaName.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty && !areas.contains(where: { $0.name == trimmed }) {
+            modelContext.insert(InventoryArea(name: trimmed))
+            try? modelContext.save()
+        }
+        newAreaName = ""
+    }
+
+    private func deleteArea(_ area: InventoryArea) {
+        modelContext.delete(area)
+        try? modelContext.save()
+    }
+
+    // MARK: - 备份 / 恢复
+
     private func prepareBackup() {
         do {
-            let data = try BackupManager.encode(items: items)
+            let data = try BackupManager.encode(items: items, areas: areas)
             exportDocument = BackupDocument(data: data)
             showExporter = true
         } catch {
@@ -163,9 +249,10 @@ struct SettingsView: View {
     private func handlePicked(_ url: URL) {
         do {
             let data = try Data(contentsOf: url)
-            let restored = try BackupManager.decode(data)
-            pendingRestore = restored
-            pendingCount = restored.count
+            let result = try BackupManager.decode(data)
+            pendingRestore = result.items
+            pendingAreas = result.areas
+            pendingCount = result.items.count
             confirmApply = true
         } catch {
             messageText = "恢复失败：\(error.localizedDescription)"
@@ -176,17 +263,25 @@ struct SettingsView: View {
     /// 确认后应用恢复：先清空当前数据再写入备份，避免唯一主键冲突
     private func applyRestore() {
         for item in items { modelContext.delete(item) }
+        for area in areas { modelContext.delete(area) }
         try? modelContext.save()
+        for areaName in pendingAreas {
+            modelContext.insert(InventoryArea(name: areaName))
+        }
         for item in pendingRestore { modelContext.insert(item) }
         try? modelContext.save()
-        messageText = "恢复成功，共 \(pendingRestore.count) 件物品"
+        messageText = "恢复成功，共 \(pendingRestore.count) 件物品、\(pendingAreas.count) 个区域"
         pendingRestore = []
+        pendingAreas = []
         showMessage = true
     }
 
     private func clearAll() {
         for item in items {
             modelContext.delete(item)
+        }
+        for area in areas {
+            modelContext.delete(area)
         }
         try? modelContext.save()
     }
