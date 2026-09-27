@@ -11,6 +11,7 @@ import SwiftData
 ///  - 顶栏随滚动连续形态变换：统计区一上移就开始收缩，滚动 10pt 完全收成玻璃胶囊
 ///  - 状态胶囊：主页使用纯色胶囊（非液态玻璃），颜色按需关注/充足/未拆封区分
 ///  - 类别/位置筛选固定在底部 safeAreaInset，与 tab 栏同一层级，透明底不遮挡内容
+///  - 过渡动画：详情页从物品卡 zoom 放大进入/反向缩回关闭（官方 NavigationTransition）
 ///  - 外观：跟随系统深浅色，背景/卡片/分隔线/轨道均自适应
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
@@ -24,6 +25,8 @@ struct HomeView: View {
     @State private var selectedItem: InventoryItem? = nil
     /// 顶栏收缩进度：0=大标题展开，1=完全收成胶囊（随滚动偏移连续变化）
     @State private var titleProgress: CGFloat = 0
+    /// 页面转场命名空间：详情页 zoom 打开/关闭动画与物品卡匹配
+    @Namespace private var namespace
 
     private var availableRooms: [String] {
         Array(Set(items.map(\.location))).sorted()
@@ -173,9 +176,10 @@ struct HomeView: View {
             .navigationDestination(isPresented: $showAddSheet) {
                 ItemEditView(mode: .add)
             }
-            // 物品详情：二级页面（push），标准转场（稳定）
+            // 物品详情：二级页面（push），zoom 转场：从物品卡放大打开 / 反向缩回关闭
             .navigationDestination(item: $selectedItem) { item in
                 ItemDetailView(item: item)
+                    .navigationTransition(.zoom(sourceID: item.id, in: namespace))
             }
             // 接收 tab 栏中间「+」触发的添加
             .onReceive(NotificationCenter.default.publisher(for: .openAddItem)) { _ in
@@ -264,6 +268,10 @@ struct HomeView: View {
         VStack(spacing: 12) {
             ForEach(list) { item in
                 ItemRow(item: item, emphasized: emphasized)
+                    // zoom 转场源：点按进入详情时从这张卡片放大，返回时缩回
+                    .matchedTransitionSource(id: item.id, in: namespace) { source in
+                        source.clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    }
                     .contentShape(Rectangle())
                     .onTapGesture { selectedItem = item }
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
