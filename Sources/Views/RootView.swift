@@ -39,8 +39,7 @@ struct RootView: View {
         // iOS 26 官方液态玻璃 tab bar：滚动时自动最小化，tap 切换为系统原生交互
         .tabBarMinimizeBehavior(.onScrollDown)
         .tint(Color(red: 0.30, green: 0.55, blue: 0.42))
-        // 整体底色采用白色：固定浅色外观，保证文字/卡片在白色底上始终可读
-        .preferredColorScheme(.light)
+        // 跟随系统深浅色外观（不锁浅色），背景/卡片/文字均自适应
         .onChange(of: selection) { _, newValue in
             if newValue == .add {
                 NotificationCenter.default.post(name: .openAddItem, object: nil)
@@ -50,10 +49,13 @@ struct RootView: View {
     }
 }
 
-/// 全应用统一背景：纯白（整体底色采用白色）
+/// 全应用统一背景：浅色=纯白，深色=近黑（自适应）
 struct AppBackground: View {
     var body: some View {
-        Color.white.ignoresSafeArea()
+        Color(uiColor: UIColor { t in
+            t.userInterfaceStyle == .dark ? UIColor(white: 0.08, alpha: 1) : UIColor.white
+        })
+        .ignoresSafeArea()
     }
 }
 
