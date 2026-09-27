@@ -24,8 +24,8 @@ struct ItemEditView: View {
     @State private var inUse = 0
     @State private var avgConsumeDays = 7
     @State private var reminderDays = 3
-    @State private var isOpened = true
     @State private var reminderRule = 0          // 0=按剩余天数 1=按库存数量
+    @State private var isOpened = true
     @AppStorage("useHistoryPrediction") private var useHistoryPrediction = true
     @State private var enableExpiry = false
 
@@ -92,7 +92,7 @@ struct ItemEditView: View {
                         }
 
                         field("平均消耗周期 *") { stockStepper("每件约 \(avgConsumeDays) 天", onDown: decrementAvg, onUp: incrementAvg) }
-                        field(reminderRule == 0 ? "补货提醒 *" : "补货提醒 *") {
+                        field("补货提醒 *") {
                             stockStepper(reminderRule == 0 ? "剩余 \(reminderDays) 天时提醒" : "库存 ≤ \(reminderDays) 件时提醒",
                                          onDown: decrementRemind, onUp: incrementRemind)
                         }
@@ -161,6 +161,7 @@ struct ItemEditView: View {
             inUse = item.inUse
             avgConsumeDays = item.avgConsumeDays
             reminderDays = item.reminderDays
+            reminderRule = item.reminderRule
             isOpened = item.isOpened
         } else {
             location = ""
@@ -179,6 +180,7 @@ struct ItemEditView: View {
             item.inUse = max(0, inUse)
             item.avgConsumeDays = max(1, avgConsumeDays)
             item.reminderDays = max(1, reminderDays)
+            item.reminderRule = reminderRule
             item.isOpened = isOpened
             if isOpened { item.lastUnpackDate = item.lastUnpackDate ?? Date() }
         } else {
@@ -191,6 +193,7 @@ struct ItemEditView: View {
                 inUse: max(0, inUse),
                 avgConsumeDays: max(1, avgConsumeDays),
                 reminderDays: max(1, reminderDays),
+                reminderRule: reminderRule,
                 isOpened: isOpened
             )
             modelContext.insert(item)
