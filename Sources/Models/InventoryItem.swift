@@ -39,7 +39,8 @@ final class InventoryItem {
     var totalStock: Int = 0          // 库存数量（未拆封/可用的件数）
     var inUse: Int = 0               // 使用中数量
     var avgConsumeDays: Int = 5      // 平均消耗天数（每 1 件用完需要多少天）
-    var reminderDays: Int = 3        // 提醒规则：剩余天数 ≤ 该值时提醒
+    var reminderDays: Int = 3        // 提醒阈值：按剩余天数时为天数，按库存数量时为件数
+    var reminderRule: Int = 0        // 提醒依据：0=按剩余天数 1=按库存数量
     var createdAt: Date = Date()
     var isOpened: Bool = true        // 是否已拆封
     var lastUnpackDate: Date?        // 最近拆封日期
@@ -62,6 +63,7 @@ final class InventoryItem {
         inUse: Int = 0,
         avgConsumeDays: Int = 5,
         reminderDays: Int = 3,
+        reminderRule: Int = 0,
         isOpened: Bool = true
     ) {
         self.id = id
@@ -73,6 +75,7 @@ final class InventoryItem {
         self.inUse = inUse
         self.avgConsumeDays = max(1, avgConsumeDays)
         self.reminderDays = max(1, reminderDays)
+        self.reminderRule = reminderRule
         self.createdAt = Date()
         self.isOpened = isOpened
         self.lastUnpackDate = isOpened ? Date() : nil
@@ -99,9 +102,12 @@ final class InventoryItem {
         Calendar.current.date(byAdding: .day, value: remainingDays, to: Date()) ?? Date()
     }
 
-    /// 是否处于需关注状态
+    /// 是否处于需关注状态（按设置的提醒依据判断）
     var needsAttention: Bool {
-        totalStock <= 0 || remainingDays <= reminderDays
+        if reminderRule == 1 {
+            return totalStock <= reminderDays
+        }
+        return totalStock <= 0 || remainingDays <= reminderDays
     }
 
     /// 拆封进度百分比（0-100）：已拆封且最近有拆封记录
