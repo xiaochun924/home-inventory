@@ -222,9 +222,9 @@ struct ItemDetailView: View {
                 Text("消耗与提醒")
                     .font(.system(size: 16, weight: .semibold))
                 Divider().opacity(0.4)
-                row("提醒依据", value: "按剩余天数")
+                row("提醒依据", value: item.reminderRule == 1 ? "按库存数量" : "按剩余天数")
                 row("平均消耗", value: "\(item.avgConsumeDays)天")
-                row("提醒规则", value: "剩余≤\(item.reminderDays)天")
+                row("提醒规则", value: item.reminderRule == 1 ? "库存≤\(item.reminderDays)件" : "剩余≤\(item.reminderDays)天")
             }
             .padding(16)
         }
