@@ -2,6 +2,8 @@ import SwiftUI
 import SwiftData
 
 /// 物品详情页：库存信息、拆封/补货、消耗预测、消耗与提醒
+/// 布局参考「有余」详情样式：极简玻璃顶栏 + 头部大标题（商品名/品类 | 库存大字）+
+/// 信息卡两列（存放位置 | 最近拆封+拆封进度）+ 拆封/补货按钮 + 预测/提醒卡片
 struct ItemDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -22,6 +24,7 @@ struct ItemDetailView: View {
 
             ScrollView {
                 VStack(spacing: 18) {
+                    headerBlock
                     infoCard
                     actionButtons
                     predictionCard
@@ -34,11 +37,16 @@ struct ItemDetailView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                GlassTopBar(
-                    title: item.name,
-                    leading: { GlassCircleButton(icon: "chevron.left") { dismiss() } },
-                    trailing: { GlassCircleButton(icon: "pencil", tint: Color(red: 0.36, green: 0.62, blue: 0.48)) { showEdit = true } }
-                )
+                // 极简玻璃顶栏（参考截图）：左返回 / 右编辑，中间留空，标题在内容区
+                GlassEffectContainer {
+                    HStack {
+                        GlassCircleButton(icon: "chevron.left") { dismiss() }
+                        Spacer()
+                        GlassCircleButton(icon: "pencil", tint: Color(red: 0.36, green: 0.62, blue: 0.48)) { showEdit = true }
+                    }
+                }
+                .frame(height: 48)
+                .padding(.horizontal, 16)
             }
             // 编辑物品：二级页面（push），支持右滑返回
             .navigationDestination(isPresented: $showEdit) {
@@ -61,18 +69,23 @@ struct ItemDetailView: View {
         }
     }
 
-    // MARK: - 基本信息
+    // MARK: - 头部：商品名 + 品类（左），库存大字（右）
 
-    private var infoCard: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text(item.category.rawValue)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.secondary)
-                    Spacer()
+    private var headerBlock: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.name)
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundColor(.primary)
+                Text(item.category.rawValue)
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                HStack(alignment: .lastTextBaseline, spacing: 6) {
                     Text("\(item.totalStock)")
-                        .font(.system(size: 26, weight: .bold))
+                        .font(.system(size: 36, weight: .bold))
                         .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
                         .contentTransition(.numericText())
                         .animation(.snappy(duration: 0.4), value: item.totalStock)
@@ -80,30 +93,43 @@ struct ItemDetailView: View {
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                 }
+                Text("使用中 \(item.inUse)")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.horizontal, 4)
+    }
 
-                Divider().opacity(0.4)
+    // MARK: - 信息卡：存放位置 | 最近拆封 + 拆封进度
 
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("存放位置")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                        locationControl
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 2) {
+    private var infoCard: some View {
+        GlassCard {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("存放位置")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    locationControl
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 6) {
+                    HStack(spacing: 6) {
                         Text("最近拆封")
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
-                        if let rec = item.lastUnpackRecord {
-                            Text("\(Format.shortDate(rec.date))·\(Format.relativeDays(from: rec.date))·\(rec.quantity)包")
-                                .font(.system(size: 13))
-                                .foregroundColor(.primary)
-                        } else {
-                            Text("暂无记录")
-                                .font(.system(size: 13))
-                                .foregroundColor(.secondary)
-                        }
+                        Text("\(Int(unpackProgress * 100))%")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(unpackProgress > 0 ? Color(red: 0.28, green: 0.52, blue: 0.40) : Color.secondary)
+                    }
+                    if let rec = item.lastUnpackRecord {
+                        Text("\(Format.shortDate(rec.date))·\(Format.relativeDays(from: rec.date))·\(rec.quantity)包")
+                            .font(.system(size: 13))
+                            .foregroundColor(.primary)
+                    } else {
+                        Text("暂无记录")
+                            .font(.system(size: 13))
+                            .foregroundColor(.secondary)
                     }
                 }
             }
@@ -111,15 +137,11 @@ struct ItemDetailView: View {
         }
     }
 
-    private func labelBlock(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-            Text(value)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(.primary)
-        }
+    /// 拆封进度 = 使用中 / (库存 + 使用中)，0% 未在使用 → 100% 全部在使用中
+    private var unpackProgress: Double {
+        let total = item.totalStock + item.inUse
+        guard total > 0 else { return 0 }
+        return min(max(Double(item.inUse) / Double(total), 0), 1)
     }
 
     /// 存放位置修改入口：弹出历史已用位置供选择 + 自定义输入（自定义过的位置自动进入候选）
