@@ -175,3 +175,19 @@ struct SolidStatusCapsule: View {
             .background(Capsule().fill(color))
     }
 }
+
+/// 纯色 + 号胶囊按钮（主页/区域页顶栏右上角，参考「有余」布局：+ 独立于 tab 栏）
+struct SolidAddCapsule: View {
+    var tint: Color = Color(red: 0.36, green: 0.62, blue: 0.48)
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "plus")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 46, height: 36)
+                .background(Capsule().fill(tint))
+        }
+    }
+}
