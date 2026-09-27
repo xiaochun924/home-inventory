@@ -4,6 +4,7 @@ import SwiftData
 /// 物品详情页：库存信息、拆封/补货、消耗预测、消耗与提醒
 /// 布局参考「有余」详情样式：极简玻璃顶栏 + 头部大标题（商品名/品类 | 库存大字）+
 /// 信息卡两列（存放位置 | 最近拆封+拆封进度）+ 拆封/补货按钮 + 预测/提醒卡片
+/// 按钮配色对齐截图：拆封=浅色胶囊+深绿文字；补货=深绿胶囊+白字
 struct ItemDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -185,14 +186,21 @@ struct ItemDetailView: View {
         try? modelContext.save()
     }
 
-    // MARK: - 拆封 / 补货按钮
+    // MARK: - 拆封 / 补货按钮（配色对齐截图）
 
     private var actionButtons: some View {
         HStack(spacing: 14) {
-            GlassCapsuleButton(title: "拆封", tint: Color(red: 0.36, green: 0.62, blue: 0.48)) {
-                showUnpack = true
+            // 拆封：浅色胶囊 + 深绿文字（截图样式）
+            Button { showUnpack = true } label: {
+                Text("拆封")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color(red: 0.13, green: 0.35, blue: 0.29))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .glassEffect(.regular.tint(Color(red: 0.93, green: 0.95, blue: 0.94)).interactive(), in: .capsule)
             }
-            GlassCapsuleButton(title: "补货", tint: Color(red: 0.45, green: 0.58, blue: 0.33)) {
+            // 补货：深绿胶囊 + 白字（截图样式）
+            GlassCapsuleButton(title: "补货", tint: Color(red: 0.20, green: 0.42, blue: 0.37)) {
                 showRestock = true
             }
         }
