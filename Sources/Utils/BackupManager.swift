@@ -35,25 +35,37 @@ struct InventoryItemDTO: Codable {
     var restockRecords: [RestockRecordDTO]
 }
 
-/// 备份文件结构：区域 + 物品（新格式）
+/// 区域快照：名称 + 排序（底部导航顺序）
+struct AreaDTO: Codable {
+    var name: String
+    var sortOrder: Int
+}
+
+/// 备份文件结构：区域（含顺序）+ 物品（新格式）
 struct BackupFileDTO: Codable {
+    var areas: [AreaDTO]
+    var items: [InventoryItemDTO]
+}
+
+/// 兼容旧版备份：区域仅为名称数组
+struct LegacyBackupFileDTO: Codable {
     var areas: [String]
     var items: [InventoryItemDTO]
 }
 
 /// 恢复结果
 struct BackupResult {
-    var areas: [String]
+    var areas: [AreaDTO]
     var items: [InventoryItem]
 }
 
 // MARK: - 备份 / 恢复
 
 enum BackupManager {
-    /// 导出：将全部区域与物品（含拆封/补货记录）编码为 JSON
+    /// 导出：将全部区域（含顺序）与物品（含拆封/补货记录）编码为 JSON
     static func encode(items: [InventoryItem], areas: [InventoryArea]) throws -> Data {
         let file = BackupFileDTO(
-            areas: areas.map(\.name),
+            areas: areas.sorted { $0.sortOrder < $1.sortOrder }.map { AreaDTO(name: $0.name, sortOrder: $0.sortOrder) },
             items: items.map { dto(from: $0) }
         )
         let encoder = JSONEncoder()
@@ -62,13 +74,22 @@ enum BackupManager {
         return try encoder.encode(file)
     }
 
-    /// 导入：优先解析新格式（含区域），旧格式（纯物品数组）自动兼容
+    /// 导入：优先解析新格式（区域含顺序），再兼容旧格式（区域仅名称数组），最后兼容纯物品数组
     static func decode(_ data: Data) throws -> BackupResult {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
+        // 新格式：区域带 sortOrder
         if let file = try? decoder.decode(BackupFileDTO.self, from: data) {
             return BackupResult(areas: file.areas, items: file.items.map { item(from: $0) })
         }
+        // 旧格式：区域仅为名称数组（按数组顺序补 sortOrder）
+        if let legacy = try? decoder.decode(LegacyBackupFileDTO.self, from: data) {
+            return BackupResult(
+                areas: legacy.areas.enumerated().map { AreaDTO(name: $1, sortOrder: $0) },
+                items: legacy.items.map { item(from: $0) }
+            )
+        }
+        // 最旧格式：纯物品数组，无区域
         let dtos = try decoder.decode([InventoryItemDTO].self, from: data)
         return BackupResult(areas: [], items: dtos.map { item(from: $0) })
     }
