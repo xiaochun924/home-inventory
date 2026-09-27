@@ -301,8 +301,9 @@ struct UnpackSheet: View {
 
     var body: some View {
         sheetBody(title: "拆封", tint: Color(red: 0.36, green: 0.62, blue: 0.48)) {
-            item.unpack(quantity: quantity)
-            let rec = UnpackRecord(quantity: quantity)
+            let qty = max(1, quantity)
+            item.unpack(quantity: qty)
+            let rec = UnpackRecord(quantity: qty)
             rec.item = item
             modelContext.insert(rec)
             try? modelContext.save()
@@ -319,30 +320,12 @@ struct UnpackSheet: View {
             Text("当前库存 \(item.totalStock) 件")
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)
-            stepper
+            QuantityField(value: $quantity, tint: tint)
             GlassCapsuleButton(title: "确认", tint: tint, action: confirm)
             Spacer()
         }
         .padding(20)
         .presentationDetents([.height(260)])
-    }
-
-    private var stepper: some View {
-        HStack(spacing: 16) {
-            Button { if quantity > 1 { quantity -= 1 } } label: { circle("-") }
-            Text("\(quantity)")
-                .font(.system(size: 26, weight: .bold))
-                .frame(width: 60)
-            Button { quantity += 1 } label: { circle("+") }
-        }
-    }
-
-    private func circle(_ s: String) -> some View {
-        Text(s)
-            .font(.system(size: 22, weight: .bold))
-            .foregroundColor(.white)
-            .frame(width: 40, height: 40)
-            .background(Circle().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
     }
 }
 
@@ -361,16 +344,11 @@ struct RestockSheet: View {
             Text("当前库存 \(item.totalStock) 件")
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)
-            HStack(spacing: 16) {
-                Button { if quantity > 1 { quantity -= 1 } } label: { circle("-") }
-                Text("\(quantity)")
-                    .font(.system(size: 26, weight: .bold))
-                    .frame(width: 60)
-                Button { quantity += 1 } label: { circle("+") }
-            }
+            QuantityField(value: $quantity, tint: Color(red: 0.55, green: 0.65, blue: 0.48))
             GlassCapsuleButton(title: "确认", tint: Color(red: 0.45, green: 0.58, blue: 0.33)) {
-                item.restock(quantity: quantity)
-                let rec = RestockRecord(quantity: quantity)
+                let qty = max(1, quantity)
+                item.restock(quantity: qty)
+                let rec = RestockRecord(quantity: qty)
                 rec.item = item
                 modelContext.insert(rec)
                 try? modelContext.save()
@@ -381,12 +359,37 @@ struct RestockSheet: View {
         .padding(20)
         .presentationDetents([.height(260)])
     }
+}
+
+/// 数量输入行（弹窗用）：中间可手动输入数字（数字键盘），两侧 +/- 步进
+struct QuantityField: View {
+    @Binding var value: Int
+    var tint: Color = Color(red: 0.36, green: 0.62, blue: 0.48)
+
+    var body: some View {
+        HStack(spacing: 16) {
+            Button { if value > 1 { value -= 1 } } label: { circle("-") }
+            TextField("1", text: Binding(
+                get: { "\(value)" },
+                set: { newValue in
+                    // 只保留数字字符，空输入视为 0
+                    let digits = newValue.filter(\.isNumber)
+                    value = Int(digits) ?? 0
+                }
+            ))
+            .keyboardType(.numberPad)
+            .multilineTextAlignment(.center)
+            .font(.system(size: 26, weight: .bold))
+            .frame(width: 90)
+            Button { value += 1 } label: { circle("+") }
+        }
+    }
 
     private func circle(_ s: String) -> some View {
         Text(s)
             .font(.system(size: 22, weight: .bold))
             .foregroundColor(.white)
             .frame(width: 40, height: 40)
-            .background(Circle().fill(Color(red: 0.55, green: 0.65, blue: 0.48)))
+            .background(Circle().fill(tint))
     }
 }
