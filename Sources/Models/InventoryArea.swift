@@ -5,10 +5,12 @@ import SwiftData
 /// 物品通过 location 字符串归入区域；删除区域不删除物品，仅移除分区入口
 @Model
 final class InventoryArea {
+    @Attribute(.unique) var id: UUID = UUID()
     @Attribute(.unique) var name: String
     var createdAt: Date
 
     init(name: String) {
+        self.id = UUID()
         self.name = name
         self.createdAt = Date()
     }
