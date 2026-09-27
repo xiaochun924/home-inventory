@@ -3,6 +3,7 @@ import SwiftData
 
 /// 新增 / 编辑物品（二级页面）
 /// 布局参考「有余」：顶部返回 + 保存，正文按板块分块（消耗品信息 / 库存与位置 / 消耗与提醒 / 保质期 / 补货）
+/// 存储位置候选：优先取已设置区域，其次历史位置；从区域页「去添加」进入时自动预填该区域
 struct ItemEditView: View {
     enum Mode {
         case add
@@ -15,6 +16,10 @@ struct ItemEditView: View {
 
     // 查询全部物品，用于收集历史存放位置供选择复用
     @Query(sort: \InventoryItem.createdAt) private var allItems: [InventoryItem]
+    // 已设置的区域（分区管理）
+    @Query(sort: \InventoryArea.createdAt) private var areas: [InventoryArea]
+    // 从区域页跳转添加时预填的存储位置
+    @AppStorage("pendingAddLocation") private var pendingAddLocation = ""
 
     @State private var name = ""
     @State private var brand = ""
@@ -51,8 +56,8 @@ struct ItemEditView: View {
                         field("存储位置 *") {
                             VStack(alignment: .leading, spacing: 10) {
                                 locationField
-                                if !usedLocations.isEmpty {
-                                    usedLocationChips
+                                if !locationCandidates.isEmpty {
+                                    locationChips
                                 }
                             }
                         }
@@ -164,7 +169,9 @@ struct ItemEditView: View {
             reminderRule = item.reminderRule
             isOpened = item.isOpened
         } else {
-            location = ""
+            // 从区域页「去添加」进入：预填该区域，并消费掉临时标记
+            location = pendingAddLocation
+            pendingAddLocation = ""
         }
     }
 
@@ -248,7 +255,7 @@ struct ItemEditView: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 7)
                         .background(Capsule().fill(category == c ? Color(red: 0.36, green: 0.62, blue: 0.48) : Color.clear))
-                        .overlay(Capsule().stroke(category == c ? Color.clear : Color(red: 0.36, green: 0.62, blue: 0.48).opacity(0.4), lineWidth: 1))
+                        .overlay(Capsule().stroke(category == c ? Color.clear : Color(red: 0.36, green: 0.62, blue: 0.40).opacity(0.4), lineWidth: 1))
                 }
             }
         }
@@ -262,17 +269,20 @@ struct ItemEditView: View {
             .background(glassBg)
     }
 
-    /// 历史存放位置（数据库去重，自定义过即出现在候选里）
-    private var usedLocations: [String] {
-        Set(allItems.map { $0.location })
-            .filter { !$0.isEmpty && $0 != "未指定" }
-            .sorted()
+    /// 位置候选：已设置区域优先，其次历史使用过的位置（去重）
+    private var locationCandidates: [String] {
+        var set = Set<String>()
+        for a in areas { set.insert(a.name) }
+        for loc in allItems.map(\.location) {
+            if !loc.isEmpty && loc != "未指定" { set.insert(loc) }
+        }
+        return set.sorted()
     }
 
-    /// 历史位置候选胶囊：点击即填入
-    private var usedLocationChips: some View {
+    /// 位置候选胶囊：点击即填入
+    private var locationChips: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 8)], spacing: 8) {
-            ForEach(usedLocations, id: \.self) { loc in
+            ForEach(locationCandidates, id: \.self) { loc in
                 Button { location = loc } label: {
                     Text(loc)
                         .font(.system(size: 13, weight: .medium))
