@@ -5,6 +5,7 @@ import SwiftData
 /// 布局参考「有余」详情样式：极简顶栏 + 头部大标题（商品名/品类 | 库存大字）+
 /// 信息卡两列（存放位置 | 最近拆封+拆封进度）+ 拆封/补货按钮 + 预测/提醒卡片
 /// 按钮配色对齐截图：拆封=浅色纯色胶囊+深绿文字；补货=深绿纯色胶囊+白字（均非液态玻璃）
+/// 拆封语义：本次拆封多少，使用中就是多少（替换而非累加）
 /// 稳定性：拆封/补货确认先 dismiss 再改模型，数量上限 999，避免返回主页闪烁/闪退
 struct ItemDetailView: View {
     @Environment(\.dismiss) private var dismiss
@@ -326,6 +327,7 @@ struct ItemDetailView: View {
 }
 
 /// 拆封弹窗
+/// 拆封语义：本次拆封多少，使用中就是多少；数量不超过当前库存
 /// 稳定性修复：确认时先 dismiss 关闭弹窗（停止弹窗视图对 item 的依赖渲染），
 /// 再修改可观察的 @Model 对象并保存，避免在弹窗展示/关闭动画期间触发模型变更竞争。
 struct UnpackSheet: View {
@@ -336,8 +338,10 @@ struct UnpackSheet: View {
 
     var body: some View {
         sheetBody(title: "拆封", tint: Color(red: 0.36, green: 0.62, blue: 0.48)) {
-            let qty = min(max(1, quantity), 999)
+            // 数量限制：1...库存（库存为 0 时不能拆封），上限 999
+            let qty = min(max(1, quantity), max(1, item.totalStock))
             dismiss()
+            guard item.totalStock > 0 else { return }
             item.unpack(quantity: qty)
             let rec = UnpackRecord(quantity: qty)
             rec.item = item
