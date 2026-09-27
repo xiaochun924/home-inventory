@@ -106,7 +106,7 @@ struct GlassCapsuleButton: View {
     }
 }
 
-/// 状态胶囊标签（官方 Liquid Glass）
+/// 状态胶囊标签（液态玻璃版，详情页等场景使用）
 struct StatusCapsule: View {
     let text: String
     var color: Color
@@ -118,5 +118,20 @@ struct StatusCapsule: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
             .glassEffect(.clear, in: .capsule)
+    }
+}
+
+/// 纯色状态胶囊标签（主页使用，非液态玻璃）：纯色胶囊底 + 白字，颜色按状态区分
+struct SolidStatusCapsule: View {
+    let text: String
+    var color: Color
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundColor(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(color))
     }
 }
