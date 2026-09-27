@@ -202,7 +202,7 @@ struct SettingsView: View {
                         Text("所有物品、区域、拆封与补货记录将被永久删除，且不可恢复。")
                     }
 
-                    Text("家庭库存管理 v1.1\n基于 Swift 6 · SwiftData · 液态玻璃设计")
+                    Text("家庭库存管理 v1.0\n基于 Swift 6 \n黑子 ")
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)

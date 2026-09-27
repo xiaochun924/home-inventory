@@ -1,19 +1,6 @@
 import SwiftUI
 import SwiftData
 
-/// 首页：库存总览、分类筛选、物品列表
-/// 布局重构（参考「有余」结构，增强可视性）：
-///  - 可见化卡片：浅色填充 + 描边 + 柔和投影，深色模式自动转深灰卡片
-///  - 顶部三项概览条：需要关注 / 消耗品种类 / 尚未拆封
-///  - 分区标题带计数胶囊（颜色随分区语义）
-///  - 物品卡信息层级更清晰：品类色点、库存/使用中黑字加大、加粗进度条+剩余百分比
-///  - 需关注物品整卡橙色高亮
-///  - 顶栏随滚动连续形态变换：统计区一上移就开始收缩，滚动 10pt 完全收成玻璃胶囊
-///  - 状态胶囊：主页使用纯色胶囊（非液态玻璃），颜色按需关注/充足/未拆封区分
-///  - 类别/位置筛选固定在底部 safeAreaInset，与 tab 栏同一层级，透明底不遮挡内容
-///  - 添加入口：顶栏右上角独立纯色 + 胶囊（参考「有余」，+ 不在 tab 栏内）
-///  - 过渡动画：详情页从物品卡 zoom 放大进入/反向缩回关闭（官方 NavigationTransition）
-///  - 外观：跟随系统深浅色，背景/卡片/分隔线/轨道均自适应
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \InventoryItem.createdAt) private var items: [InventoryItem]
