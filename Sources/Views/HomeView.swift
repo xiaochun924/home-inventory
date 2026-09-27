@@ -134,7 +134,7 @@ struct HomeView: View {
                         .padding(.horizontal, 20)
                         .frame(height: 40)
                         .glassEffect(.clear, in: .capsule)
-                        .opacity(titleProgress)
+                        .opacity(Double(titleProgress))
                         .scaleEffect(0.85 + 0.15 * titleProgress)
 
                     // 大标题 + 副标题（顶部左对齐，随进度淡出缩小，字号收紧确保不溢出）
@@ -151,7 +151,7 @@ struct HomeView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 4)
-                    .opacity(1 - titleProgress)
+                    .opacity(Double(1 - titleProgress))
                     .scaleEffect(1 - 0.08 * titleProgress, anchor: .topLeading)
 
                     // 右上搜索按钮（两态共用，位置固定）
