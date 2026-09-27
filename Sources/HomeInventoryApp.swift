@@ -12,7 +12,8 @@ struct HomeInventoryApp: App {
         let schema = Schema([
             InventoryItem.self,
             UnpackRecord.self,
-            RestockRecord.self
+            RestockRecord.self,
+            InventoryArea.self
         ])
         // 将历史版本标记为迁移未来使用，此处直接使用最新配置
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
