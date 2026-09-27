@@ -9,8 +9,7 @@ import SwiftData
 ///  - 物品卡信息层级更清晰：品类色点、图标化库存/使用中、加粗进度条+剩余百分比
 ///  - 需关注物品整卡橙色高亮
 ///  - 顶栏随滚动连续形态变换：统计区一上移就开始收缩，滚动 10pt 完全收成玻璃胶囊
-///  - 稳定性：详情页/添加页使用标准 push 转场
-/// 注：移除 navigationTransition(.zoom/.fade) —— 该系列 API 在 CI 构建中编译失败（exit 65，#67-#70）
+///  - 状态胶囊：主页使用纯色胶囊（非液态玻璃），颜色按需关注/充足/未拆封区分
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \InventoryItem.createdAt) private var items: [InventoryItem]
@@ -396,6 +395,7 @@ struct HomeCard<Content: View>: View {
 
 /// 首页物品卡（参考「有余」：左信息 + 右状态/天数 + 底部进度条，信息层级更清晰）
 /// 进度条表示「剩余库存占比」：满库时 100%，随消耗逐渐缩短，用完归零。
+/// 状态胶囊：纯色底 + 白字（非液态玻璃），颜色按需关注/充足/未拆封区分
 struct ItemRow: View {
     let item: InventoryItem
     var emphasized: Bool = false
@@ -432,7 +432,7 @@ struct ItemRow: View {
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 5) {
-                        StatusCapsule(text: item.status.title, color: statusColor(item.status))
+                        SolidStatusCapsule(text: item.status.title, color: statusColor(item.status))
                         if item.isOpened {
                             Text("约\(item.remainingDays)天")
                                 .font(.system(size: 14, weight: .semibold))
