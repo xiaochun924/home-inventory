@@ -2,38 +2,61 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-/// 文件选择器（UIKit 原生包装）
-/// SwiftUI 的 fileImporter 在部分 iOS 版本存在「能打开但无法选中文件」的问题，
-/// 这里直接用 UIDocumentPickerViewController：
-///   - asCopy: true：所选文件会被复制进 App 沙盒，读取无需安全作用域访问；
-///   - allowedContentTypes 放宽为 .data：任意文件都可选，格式由导入方校验。
-struct DocumentPicker: UIViewControllerRepresentable {
-    var allowedContentTypes: [UTType] = [.data]
-    var onPicked: (URL) -> Void
-    var onCancel: () -> Void
+/// 原生文件选择器（顶层模态直接弹出）
+/// 之前把 UIDocumentPickerViewController 嵌进 SwiftUI 的 fullScreenCover/sheet，
+/// 嵌套模态在部分 iOS 上会导致文件行不可点、选不中文件；
+/// 这里改成从当前最顶层控制器直接 present，让系统文件面板以真正独立的模态展示。
+/// asCopy: true —— 所选文件会被复制进 App 沙盒，读取无需安全作用域访问。
+final class DocumentPicker: NSObject, UIDocumentPickerDelegate {
+    static let shared = DocumentPicker()
 
-    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+    private var onPicked: ((URL) -> Void)?
+    private var onCancel: (() -> Void)?
+
+    /// 弹出系统文件选择器。allowedContentTypes 默认 [.data]（任意文件可选，避免置灰）。
+    func present(allowedContentTypes: [UTType] = [.data],
+                 onPicked: @escaping (URL) -> Void,
+                 onCancel: @escaping () -> Void) {
+        guard let top = Self.topViewController() else {
+            onCancel()
+            return
+        }
+        self.onPicked = onPicked
+        self.onCancel = onCancel
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: allowedContentTypes, asCopy: true)
-        picker.delegate = context.coordinator
+        picker.delegate = self
         picker.allowsMultipleSelection = false
-        return picker
+        top.present(picker, animated: true)
     }
 
-    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+    // MARK: - UIDocumentPickerDelegate
 
-    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard let url = urls.first else { return }
+        let cb = onPicked
+        onPicked = nil
+        onCancel = nil
+        cb?(url)
+    }
 
-    final class Coordinator: NSObject, UIDocumentPickerDelegate {
-        private let parent: DocumentPicker
-        init(parent: DocumentPicker) { self.parent = parent }
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        let cb = onCancel
+        onPicked = nil
+        onCancel = nil
+        cb?()
+    }
 
-        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-            guard let url = urls.first else { return }
-            parent.onPicked(url)
+    /// 找到当前最顶层可 present 的控制器（从 keyWindow 根逐级向上）
+    private static func topViewController() -> UIViewController? {
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }),
+            let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController
+        else { return nil }
+        var top = root
+        while let presented = top.presentedViewController {
+            top = presented
         }
-
-        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-            parent.onCancel()
-        }
+        return top
     }
 }
