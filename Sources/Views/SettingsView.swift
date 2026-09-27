@@ -10,7 +10,6 @@ struct SettingsView: View {
     @State private var showClearConfirm = false
     @State private var showExporter = false
     @State private var exportDocument: BackupDocument?
-    @State private var showImporter = false
     @State private var confirmApply = false
     @State private var pendingRestore: [InventoryItem] = []
     @State private var pendingCount = 0
@@ -47,8 +46,13 @@ struct SettingsView: View {
                                 }
                             }
                             Divider().opacity(0.4)
-                            // 直接打开系统文件选择器（UIKit 原生，绕开 SwiftUI fileImporter 的选中 bug）
-                            Button(action: { showImporter = true }) {
+                            // 原生文件选择器：从最顶层控制器直接弹出，避免嵌套模态选不中文件
+                            Button(action: {
+                                DocumentPicker.shared.present(
+                                    onPicked: handlePicked,
+                                    onCancel: {}
+                                )
+                            }) {
                                 HStack {
                                     Text("恢复数据")
                                         .font(.system(size: 15, weight: .medium))
@@ -119,7 +123,6 @@ struct SettingsView: View {
                 Button("好", role: .cancel) {}
             }
         }
-        // 文件面板挂在 NavigationStack 根上，与内部弹窗分离，避免展示冲突
         .fileExporter(isPresented: $showExporter,
                       document: exportDocument,
                       contentType: .json,
@@ -131,14 +134,6 @@ struct SettingsView: View {
                 messageText = "备份失败：\(error.localizedDescription)"
             }
             showMessage = true
-        }
-        // 恢复：UIKit 原生文件选择器（全屏展示）
-        .fullScreenCover(isPresented: $showImporter) {
-            DocumentPicker(
-                allowedContentTypes: [.data],
-                onPicked: handlePicked,
-                onCancel: { showImporter = false }
-            )
         }
     }
 
@@ -166,7 +161,6 @@ struct SettingsView: View {
 
     /// 选择文件后：读取并解码（asCopy 已把文件复制进沙盒，无需安全作用域访问），成功后等用户确认
     private func handlePicked(_ url: URL) {
-        showImporter = false
         do {
             let data = try Data(contentsOf: url)
             let restored = try BackupManager.decode(data)
