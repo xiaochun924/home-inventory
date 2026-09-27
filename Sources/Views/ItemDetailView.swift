@@ -6,6 +6,7 @@ import SwiftData
 /// 信息卡两列（存放位置 | 最近拆封+拆封进度）+ 拆封/补货按钮 + 预测/提醒卡片
 /// 按钮配色对齐截图：拆封=浅色胶囊+深绿文字；补货=深绿胶囊+白字
 /// 页面转场：详情页由主页 zoom 卡片放大进入/反向缩回；编辑页淡入淡出
+/// 稳定性：拆封/补货确认先 dismiss 再改模型，数量上限 999，避免返回主页闪烁/闪退
 struct ItemDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -91,7 +92,6 @@ struct ItemDetailView: View {
                         .font(.system(size: 36, weight: .bold))
                         .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
                         .contentTransition(.numericText())
-                        .animation(.snappy(duration: 0.4), value: item.totalStock)
                     Text("库存")
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
@@ -227,7 +227,6 @@ struct ItemDetailView: View {
                         .font(.system(size: 20, weight: .bold))
                         .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
                         .contentTransition(.numericText())
-                        .animation(.snappy(duration: 0.4), value: item.remainingDays)
                     Spacer()
                     StatusCapsule(text: item.status.title, color: item.needsAttention ? .orange : Color(red: 0.36, green: 0.62, blue: 0.48))
                 }
@@ -326,6 +325,8 @@ struct ItemDetailView: View {
 }
 
 /// 拆封弹窗
+/// 稳定性修复：确认时先 dismiss 关闭弹窗（停止弹窗视图对 item 的依赖渲染），
+/// 再修改可观察的 @Model 对象并保存，避免在弹窗展示/关闭动画期间触发模型变更竞争。
 struct UnpackSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -334,13 +335,13 @@ struct UnpackSheet: View {
 
     var body: some View {
         sheetBody(title: "拆封", tint: Color(red: 0.36, green: 0.62, blue: 0.48)) {
-            let qty = max(1, quantity)
+            let qty = min(max(1, quantity), 999)
+            dismiss()
             item.unpack(quantity: qty)
             let rec = UnpackRecord(quantity: qty)
             rec.item = item
             modelContext.insert(rec)
             try? modelContext.save()
-            dismiss()
         }
     }
 
@@ -362,7 +363,7 @@ struct UnpackSheet: View {
     }
 }
 
-/// 补货弹窗
+/// 补货弹窗（同样先 dismiss 再改模型）
 struct RestockSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -379,13 +380,13 @@ struct RestockSheet: View {
                 .foregroundColor(.secondary)
             QuantityField(value: $quantity, tint: Color(red: 0.55, green: 0.65, blue: 0.48))
             GlassCapsuleButton(title: "确认", tint: Color(red: 0.45, green: 0.58, blue: 0.33)) {
-                let qty = max(1, quantity)
+                let qty = min(max(1, quantity), 999)
+                dismiss()
                 item.restock(quantity: qty)
                 let rec = RestockRecord(quantity: qty)
                 rec.item = item
                 modelContext.insert(rec)
                 try? modelContext.save()
-                dismiss()
             }
             Spacer()
         }
@@ -395,6 +396,7 @@ struct RestockSheet: View {
 }
 
 /// 数量输入行（弹窗用）：中间可手动输入数字（数字键盘），两侧 +/- 步进
+/// 输入上限 999，防止超大数值影响计算稳定性
 struct QuantityField: View {
     @Binding var value: Int
     var tint: Color = Color(red: 0.36, green: 0.62, blue: 0.48)
@@ -405,8 +407,8 @@ struct QuantityField: View {
             TextField("1", text: Binding(
                 get: { "\(value)" },
                 set: { newValue in
-                    // 只保留数字字符，空输入视为 0
-                    let digits = newValue.filter(\.isNumber)
+                    // 只保留数字字符，空输入视为 0，最多 3 位
+                    let digits = newValue.filter(\.isNumber).prefix(3)
                     value = Int(digits) ?? 0
                 }
             ))
@@ -414,7 +416,7 @@ struct QuantityField: View {
             .multilineTextAlignment(.center)
             .font(.system(size: 26, weight: .bold))
             .frame(width: 90)
-            Button { value += 1 } label: { circle("+") }
+            Button { if value < 999 { value += 1 } } label: { circle("+") }
         }
     }
 
