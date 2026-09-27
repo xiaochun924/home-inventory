@@ -5,6 +5,7 @@ import SwiftData
 /// 布局参考「有余」详情样式：极简玻璃顶栏 + 头部大标题（商品名/品类 | 库存大字）+
 /// 信息卡两列（存放位置 | 最近拆封+拆封进度）+ 拆封/补货按钮 + 预测/提醒卡片
 /// 按钮配色对齐截图：拆封=浅色胶囊+深绿文字；补货=深绿胶囊+白字
+/// 页面转场：详情页由主页 zoom 卡片放大进入/反向缩回；编辑页淡入淡出
 struct ItemDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -49,9 +50,10 @@ struct ItemDetailView: View {
                 .frame(height: 48)
                 .padding(.horizontal, 16)
             }
-            // 编辑物品：二级页面（push），支持右滑返回
+            // 编辑物品：二级页面（push），支持右滑返回，淡入打开 / 淡出关闭
             .navigationDestination(isPresented: $showEdit) {
                 ItemEditView(mode: .edit(item))
+                    .navigationTransition(.fade)
             }
             .sheet(isPresented: $showUnpack) {
                 UnpackSheet(item: item)
