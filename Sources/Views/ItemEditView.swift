@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 /// 新增 / 编辑物品（二级页面）
-/// 布局参考「有余」：顶部返回 + 保存，正文按板块分块（消耗品信息 / 库存与位置 / 消耗与提醒 / 保质期 / 补货）
+/// 布局参考「有余」：顶部返回 + 保存，正文按板块分块，每板块收进自适应卡片（与主页卡片同风格）
 /// 存储位置候选：优先取已设置区域，其次历史位置；从区域页「去添加」进入时自动预填该区域
 struct ItemEditView: View {
     enum Mode {
@@ -39,84 +39,63 @@ struct ItemEditView: View {
             AppBackground().ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 22) {
+                VStack(spacing: 18) {
                     // 板块一：消耗品信息
                     sectionHeader("消耗品信息")
-                    VStack(spacing: 14) {
-                        field("名称 *") { nameField }
-                        field("品牌") { brandField }
-                        field("分类 *") { categoryChips }
+                    HomeCard {
+                        VStack(spacing: 14) {
+                            field("名称 *") { nameField }
+                            field("品牌") { brandField }
+                            field("分类 *") { categoryChips }
+                        }
                     }
 
                     // 板块二：库存与位置
                     sectionHeader("库存与位置")
-                    VStack(spacing: 14) {
-                        field("数量 *") { stockInput($totalStock) }
-                        field("使用中") { stockInput($inUse) }
-                        field("存储位置 *") {
-                            VStack(alignment: .leading, spacing: 10) {
-                                locationField
-                                if !locationCandidates.isEmpty {
-                                    locationChips
+                    HomeCard {
+                        VStack(spacing: 14) {
+                            field("数量 *") { stockInput($totalStock) }
+                            field("使用中") { stockInput($inUse) }
+                            field("存储位置 *") {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    locationField
+                                    if !locationCandidates.isEmpty {
+                                        locationChips
+                                    }
                                 }
                             }
+                            toggleRow("已拆封", subtitle: "拆封后开始计算预计可用天数", isOn: $isOpened)
                         }
-                        Toggle(isOn: $isOpened) {
-                            Text("已拆封")
-                                .font(.system(size: 15))
-                        }
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(glassBg)
                     }
 
                     // 板块三：消耗与提醒
                     sectionHeader("消耗与提醒")
-                    VStack(spacing: 14) {
-                        Picker("提醒规则", selection: $reminderRule) {
-                            Text("按剩余天数").tag(0)
-                            Text("按库存数量").tag(1)
-                        }
-                        .pickerStyle(.segmented)
+                    HomeCard {
+                        VStack(spacing: 14) {
+                            field("提醒规则") { reminderRulePicker }
 
-                        Toggle(isOn: $useHistoryPrediction) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("使用历史消耗预测")
-                                    .font(.system(size: 15))
-                                Text("未来根据使用情况自动优化周期")
+                            toggleRow("使用历史消耗预测", subtitle: "未来根据使用情况自动优化周期", isOn: $useHistoryPrediction)
+                            if useHistoryPrediction {
+                                Text("预测周期暂无·有预测数据后自动使用")
                                     .font(.system(size: 12))
                                     .foregroundColor(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                        }
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(glassBg)
-                        if useHistoryPrediction {
-                            Text("预测周期暂无·有预测数据后自动使用")
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
 
-                        field("平均消耗周期 *") { stockStepper("每件约 \(avgConsumeDays) 天", onDown: decrementAvg, onUp: incrementAvg) }
-                        field("补货提醒 *") {
-                            stockStepper(reminderRule == 0 ? "剩余 \(reminderDays) 天时提醒" : "库存 ≤ \(reminderDays) 件时提醒",
-                                         onDown: decrementRemind, onUp: incrementRemind)
+                            field("平均消耗周期 *") { stockStepper("每件约 \(avgConsumeDays) 天", onDown: decrementAvg, onUp: incrementAvg) }
+                            field("补货提醒 *") {
+                                stockStepper(reminderRule == 0 ? "剩余 \(reminderDays) 天时提醒" : "库存 ≤ \(reminderDays) 件时提醒",
+                                             onDown: decrementRemind, onUp: incrementRemind)
+                            }
                         }
                     }
 
                     // 板块四：保质期
                     sectionHeader("保质期")
-                    VStack(spacing: 8) {
-                        Toggle(isOn: $enableExpiry) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("启用保质期")
-                                    .font(.system(size: 15))
-                                Text("按每次拆封时间计算过期日期")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.secondary)
-                            }
+                    HomeCard {
+                        VStack(spacing: 8) {
+                            toggleRow("启用保质期", subtitle: "按每次拆封时间计算过期日期", isOn: $enableExpiry)
                         }
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(glassBg)
                     }
 
                     Spacer().frame(height: 30)
@@ -151,9 +130,9 @@ struct ItemEditView: View {
     }
 
     private var glassBg: some View {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
+        RoundedRectangle(cornerRadius: 14, style: .continuous)
             .fill(Color.adaptiveCardFill)
-            .background(RoundedRectangle(cornerRadius: 16).stroke(Color.adaptiveCardStroke, lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: 14).stroke(Color.adaptiveCardStroke, lineWidth: 1))
     }
 
     private func load() {
@@ -211,8 +190,12 @@ struct ItemEditView: View {
 
     // MARK: - 子控件
 
+    /// 分区标题：绿色竖条 + 标题，与主页分区标题呼应
     private func sectionHeader(_ title: String) -> some View {
-        HStack {
+        HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Color(red: 0.36, green: 0.62, blue: 0.48))
+                .frame(width: 4, height: 18)
             Text(title)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(Color.adaptiveTextGreen)
@@ -230,6 +213,25 @@ struct ItemEditView: View {
         }
     }
 
+    /// 开关行：左文字右开关，放在卡片内统一排版
+    private func toggleRow(_ title: String, subtitle: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 15))
+                    .foregroundColor(.primary)
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .tint(Color(red: 0.36, green: 0.62, blue: 0.48))
+        }
+        .padding(.vertical, 2)
+    }
+
     private var nameField: some View {
         TextField("请输入名称", text: $name)
             .font(.system(size: 15))
@@ -244,7 +246,7 @@ struct ItemEditView: View {
             .background(glassBg)
     }
 
-    /// 分类标签选择（参考截图横向胶囊）
+    /// 分类标签选择：选中纯色胶囊，未选中描边胶囊
     private var categoryChips: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 10)], spacing: 10) {
             ForEach(Category.allCases) { c in
@@ -258,6 +260,27 @@ struct ItemEditView: View {
                         .overlay(Capsule().stroke(category == c ? Color.clear : Color(red: 0.36, green: 0.62, blue: 0.40).opacity(0.4), lineWidth: 1))
                 }
             }
+        }
+    }
+
+    /// 提醒规则：纯色胶囊分段切换（对齐整体胶囊风格）
+    private var reminderRulePicker: some View {
+        HStack(spacing: 4) {
+            segmentCapsule("按剩余天数", selected: reminderRule == 0) { reminderRule = 0 }
+            segmentCapsule("按库存数量", selected: reminderRule == 1) { reminderRule = 1 }
+        }
+        .padding(4)
+        .background(Capsule().fill(Color.adaptiveCardStroke))
+    }
+
+    private func segmentCapsule(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(selected ? .white : .secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(selected ? Color(red: 0.36, green: 0.62, blue: 0.48) : Color.clear))
         }
     }
 
