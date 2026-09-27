@@ -37,7 +37,7 @@ final class InventoryItem {
     var categoryRaw: String = Category.other.rawValue // 品类（枚举原始值）
     var location: String = "未指定"   // 存放位置，如：诸暨·1
     var totalStock: Int = 0          // 库存数量（未拆封/可用的件数）
-    var inUse: Int = 0               // 使用中数量
+    var inUse: Int = 0               // 使用中数量（当前正在用的件数）
     var avgConsumeDays: Int = 5      // 平均消耗天数（每 1 件用完需要多少天）
     var reminderDays: Int = 3        // 提醒阈值：按剩余天数时为天数，按库存数量时为件数
     var reminderRule: Int = 0        // 提醒依据：0=按剩余天数 1=按库存数量
@@ -89,7 +89,7 @@ final class InventoryItem {
         set { categoryRaw = newValue.rawValue }
     }
 
-    /// 可用库存（含使用中）
+    /// 可用库存（未拆封件数）
     var availableStock: Int { totalStock }
 
     /// 预计剩余可用天数 = 库存数量 × 平均消耗天数
@@ -133,16 +133,17 @@ final class InventoryItem {
 
     // MARK: - 操作
 
-    /// 拆封：记录一次拆封并更新使用中数量
+    /// 拆封：本次拆封多少，使用中就是多少（替换而非累加），库存相应减少
     func unpack(quantity: Int) {
-        let qty = max(1, quantity)
-        totalStock = max(0, totalStock - qty)
-        inUse += qty
+        guard totalStock > 0 else { return }
+        let qty = min(max(1, quantity), totalStock)
+        totalStock -= qty
+        inUse = qty
         isOpened = true
         lastUnpackDate = Date()
     }
 
-    /// 补货：记录一次补货并增加库存
+    /// 补货：记录一次补货并增加库存（使用中数量保持不变）
     func restock(quantity: Int) {
         let qty = max(1, quantity)
         totalStock += qty
