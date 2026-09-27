@@ -8,7 +8,7 @@ import SwiftData
 ///  - 分区标题带计数胶囊（颜色随分区语义）
 ///  - 物品卡信息层级更清晰：品类色点、图标化库存/使用中、加粗进度条+剩余百分比
 ///  - 需关注物品整卡橙色高亮
-///  - 下滑页面时大标题收成玻璃胶囊顶栏（与详情/编辑页同款结构）
+///  - 下滑超过 5pt 大标题收成玻璃胶囊顶栏（弹簧动画形态变换）
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \InventoryItem.createdAt) private var items: [InventoryItem]
@@ -105,9 +105,9 @@ struct HomeView: View {
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: roomFilter)
             }
             .scrollIndicators(.hidden)
-            // 滚动超过阈值 → 大标题收成胶囊顶栏
+            // 下滑超过 5pt → 大标题收成胶囊顶栏
             .onScrollGeometryChange(for: Bool.self) { geo in
-                geo.contentOffset.y > 50
+                geo.contentOffset.y > 5
             } action: { _, collapsed in
                 if collapsed != isTitleCollapsed {
                     isTitleCollapsed = collapsed
@@ -115,44 +115,51 @@ struct HomeView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                Group {
-                    if isTitleCollapsed {
-                        // 下滑后：玻璃胶囊顶栏（与详情/编辑页同款结构）
-                        GlassTopBar(title: "家庭库存", trailing: {
-                            GlassCircleButton(icon: showSearch ? "xmark" : "magnifyingglass") {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    showSearch.toggle()
-                                    if !showSearch { searchText = "" }
-                                }
-                            }
-                        })
-                        .transition(.opacity)
-                    } else {
-                        // 顶栏：左大标题 + 副标题（含概览），右上搜索
-                        HStack(alignment: .center) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("家庭库存")
-                                    .font(.system(size: 30, weight: .bold))
-                                    .foregroundColor(Color.adaptiveTextGreen)
-                                Text("今天需要关注\(attentionItems.count)件 · 共\(filteredItems.count)个品种")
-                                    .font(.system(size: 13))
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                            GlassCircleButton(icon: showSearch ? "xmark" : "magnifyingglass") {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    showSearch.toggle()
-                                    if !showSearch { searchText = "" }
-                                }
+                // 固定高度容器，双态形态变换：大标题缩小淡出 ↔ 胶囊放大滑入（弹簧动画）
+                ZStack {
+                    // 胶囊标题（下滑后居中显示）
+                    Text("家庭库存")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(Color.adaptiveTextGreen)
+                        .padding(.horizontal, 20)
+                        .frame(height: 40)
+                        .glassEffect(.clear, in: .capsule)
+                        .opacity(isTitleCollapsed ? 1 : 0)
+                        .scaleEffect(isTitleCollapsed ? 1 : 0.85)
+                        .offset(y: isTitleCollapsed ? 0 : 4)
+
+                    // 大标题 + 副标题（顶部左对齐）
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("家庭库存")
+                                .font(.system(size: 30, weight: .bold))
+                                .foregroundColor(Color.adaptiveTextGreen)
+                            Text("今天需要关注\(attentionItems.count)件 · 共\(filteredItems.count)个品种")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .opacity(isTitleCollapsed ? 0 : 1)
+                    .scaleEffect(isTitleCollapsed ? 0.9 : 1, anchor: .topLeading)
+
+                    // 右上搜索按钮（两态共用，位置固定）
+                    HStack {
+                        Spacer()
+                        GlassCircleButton(icon: showSearch ? "xmark" : "magnifyingglass") {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                showSearch.toggle()
+                                if !showSearch { searchText = "" }
                             }
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 10)
-                        .padding(.bottom, 4)
-                        .transition(.opacity)
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 11)
                 }
-                .animation(.snappy(duration: 0.3), value: isTitleCollapsed)
+                .frame(height: 64, alignment: .top)
+                .animation(.spring(response: 0.38, dampingFraction: 0.85), value: isTitleCollapsed)
             }
             // 添加物品：二级页面（push）
             .navigationDestination(isPresented: $showAddSheet) {
