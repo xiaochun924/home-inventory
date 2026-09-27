@@ -8,7 +8,7 @@ import SwiftData
 ///  - 分区标题带计数胶囊（颜色随分区语义）
 ///  - 物品卡信息层级更清晰：品类色点、图标化库存/使用中、加粗进度条+剩余百分比
 ///  - 需关注物品整卡橙色高亮
-///  - 顶栏随滚动比例连续形态变换：统计区一上移就开始收缩，40pt 内完全收成玻璃胶囊
+///  - 顶栏随滚动连续形态变换：统计区一上移就开始收缩，统计区顶端到顶时完全收成玻璃胶囊
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \InventoryItem.createdAt) private var items: [InventoryItem]
@@ -101,24 +101,17 @@ struct HomeView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
-                // 读取滚动偏移（统计区一上移即驱动收缩进度）
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.preference(
-                            key: ScrollOffsetKey.self,
-                            value: -geo.frame(in: .named("homeScroll")).origin.y
-                        )
-                    }
-                )
                 // 筛选切换时平滑过渡
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: categoryFilter)
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: roomFilter)
             }
             .scrollIndicators(.hidden)
-            .coordinateSpace(name: "homeScroll")
-            .onPreferenceChange(ScrollOffsetKey.self) { offset in
-                // 收缩进度：滚动 0→40pt 线性完成（统计区到达顶栏位置即完全收起）
-                let p = min(max(offset / 40, 0), 1)
+            // 滚动偏移连续读取：统计区一上移即开始收缩
+            // 收缩进度 = offset / 72（72 = 顶栏 64 + 顶部间距 8，统计区顶端到顶时完全收起）
+            .onScrollGeometryChange(for: CGFloat.self) { geo in
+                geo.contentOffset.y
+            } action: { _, offset in
+                let p = min(max(offset / 72, 0), 1)
                 if abs(p - titleProgress) > 0.001 {
                     titleProgress = p
                 }
@@ -353,14 +346,6 @@ struct HomeView: View {
                 }
             }
         }
-    }
-}
-
-/// 滚动偏移读取（PreferenceKey，配合 coordinateSpace "homeScroll"）
-private struct ScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
     }
 }
 
