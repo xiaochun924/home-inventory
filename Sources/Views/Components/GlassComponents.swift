@@ -16,6 +16,28 @@ extension Color {
             ? UIColor(red: 0.58, green: 0.80, blue: 0.68, alpha: 1)
             : UIColor(red: 0.22, green: 0.40, blue: 0.30, alpha: 1)
     })
+    /// 自适应分隔线/细描边（浅色=黑6%，深色=白12%）
+    static let adaptiveSeparator = Color(uiColor: UIColor { t in
+        t.userInterfaceStyle == .dark ? UIColor(white: 1.0, alpha: 0.12) : UIColor(white: 0.0, alpha: 0.06)
+    })
+    /// 自适应进度条轨道（浅色=黑7%，深色=白15%）
+    static let adaptiveTrack = Color(uiColor: UIColor { t in
+        t.userInterfaceStyle == .dark ? UIColor(white: 1.0, alpha: 0.15) : UIColor(white: 0.0, alpha: 0.07)
+    })
+    /// 自适应卡片底（浅色=近白浅绿/浅橙，深色=深灰卡片）
+    static func adaptiveCardBackground(emphasized: Bool) -> Color {
+        Color(uiColor: UIColor { t in
+            if t.userInterfaceStyle == .dark {
+                return emphasized
+                    ? UIColor(red: 0.32, green: 0.23, blue: 0.17, alpha: 1)   // 深色需关注：暗橙
+                    : UIColor(white: 0.16, alpha: 1)                          // 深色普通：深灰
+            } else {
+                return emphasized
+                    ? UIColor(red: 1.00, green: 0.96, blue: 0.93, alpha: 1)   // 浅色需关注：浅橙
+                    : UIColor(red: 0.97, green: 0.985, blue: 0.97, alpha: 1) // 浅色普通：近白浅绿
+            }
+        })
+    }
 }
 
 // ================= 液态玻璃悬浮顶栏（全局统一规范） =================
