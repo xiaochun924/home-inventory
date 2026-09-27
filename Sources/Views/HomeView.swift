@@ -8,6 +8,7 @@ import SwiftData
 ///  - 分区标题带计数胶囊（颜色随分区语义）
 ///  - 物品卡信息层级更清晰：品类色点、图标化库存/使用中、加粗进度条+百分比
 ///  - 需关注物品整卡橙色高亮
+///  - 下滑页面时大标题收成玻璃胶囊顶栏（与详情/编辑页同款结构）
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \InventoryItem.createdAt) private var items: [InventoryItem]
@@ -18,6 +19,7 @@ struct HomeView: View {
     @State private var showSearch = false
     @State private var showAddSheet = false
     @State private var selectedItem: InventoryItem? = nil
+    @State private var isTitleCollapsed = false
 
     private var availableRooms: [String] {
         Array(Set(items.map(\.location))).sorted()
@@ -103,29 +105,54 @@ struct HomeView: View {
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: roomFilter)
             }
             .scrollIndicators(.hidden)
+            // 滚动超过阈值 → 大标题收成胶囊顶栏
+            .onScrollGeometryChange(for: Bool.self) { geo in
+                geo.contentOffset.y > 50
+            } action: { _, collapsed in
+                if collapsed != isTitleCollapsed {
+                    isTitleCollapsed = collapsed
+                }
+            }
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                // 顶栏：左大标题 + 副标题（含概览），右上搜索
-                HStack(alignment: .center) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("家庭库存")
-                            .font(.system(size: 30, weight: .bold))
-                            .foregroundColor(Color.adaptiveTextGreen)
-                        Text("今天需要关注\(attentionItems.count)件 · 共\(filteredItems.count)个品种")
-                            .font(.system(size: 13))
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    GlassCircleButton(icon: showSearch ? "xmark" : "magnifyingglass") {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            showSearch.toggle()
-                            if !showSearch { searchText = "" }
+                Group {
+                    if isTitleCollapsed {
+                        // 下滑后：玻璃胶囊顶栏（与详情/编辑页同款结构）
+                        GlassTopBar(title: "家庭库存", trailing: {
+                            GlassCircleButton(icon: showSearch ? "xmark" : "magnifyingglass") {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    showSearch.toggle()
+                                    if !showSearch { searchText = "" }
+                                }
+                            }
+                        })
+                        .transition(.opacity)
+                    } else {
+                        // 顶栏：左大标题 + 副标题（含概览），右上搜索
+                        HStack(alignment: .center) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("家庭库存")
+                                    .font(.system(size: 30, weight: .bold))
+                                    .foregroundColor(Color.adaptiveTextGreen)
+                                Text("今天需要关注\(attentionItems.count)件 · 共\(filteredItems.count)个品种")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            GlassCircleButton(icon: showSearch ? "xmark" : "magnifyingglass") {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    showSearch.toggle()
+                                    if !showSearch { searchText = "" }
+                                }
+                            }
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 10)
+                        .padding(.bottom, 4)
+                        .transition(.opacity)
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 10)
-                .padding(.bottom, 4)
+                .animation(.snappy(duration: 0.3), value: isTitleCollapsed)
             }
             // 添加物品：二级页面（push）
             .navigationDestination(isPresented: $showAddSheet) {
