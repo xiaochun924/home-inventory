@@ -6,7 +6,7 @@ import SwiftData
 ///  - 可见化卡片：浅色填充 + 描边 + 柔和投影，深色模式自动转深灰卡片
 ///  - 顶部三项概览条：需要关注 / 消耗品种类 / 尚未拆封
 ///  - 分区标题带计数胶囊（颜色随分区语义）
-///  - 物品卡信息层级更清晰：品类色点、图标化库存/使用中、加粗进度条+剩余百分比
+///  - 物品卡信息层级更清晰：品类色点、库存/使用中黑字加大、加粗进度条+剩余百分比
 ///  - 需关注物品整卡橙色高亮
 ///  - 顶栏随滚动连续形态变换：统计区一上移就开始收缩，滚动 10pt 完全收成玻璃胶囊
 ///  - 状态胶囊：主页使用纯色胶囊（非液态玻璃），颜色按需关注/充足/未拆封区分
@@ -400,6 +400,7 @@ struct HomeCard<Content: View>: View {
 /// 首页物品卡（参考「有余」：左信息 + 右状态/天数 + 底部进度条，信息层级更清晰）
 /// 进度条表示「剩余库存占比」：满库时 100%，随消耗逐渐缩短，用完归零。
 /// 状态胶囊：纯色底 + 白字（非液态玻璃），颜色按需关注/充足/未拆封区分
+/// 库存/使用中：黑色（primary）加大一号显示
 struct ItemRow: View {
     let item: InventoryItem
     var emphasized: Bool = false
@@ -431,8 +432,8 @@ struct ItemRow: View {
                             Label("库存 \(item.totalStock)", systemImage: "shippingbox")
                             Label("使用中 \(item.inUse)", systemImage: "hand.raised")
                         }
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.primary)
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 5) {
