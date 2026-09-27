@@ -101,15 +101,27 @@ struct HomeView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                GlassTopBar(
-                    title: "家庭库存",
-                    trailing: { GlassCircleButton(icon: showSearch ? "xmark" : "magnifyingglass") {
+                // 参考「有余」顶栏：左上大标题 + 副标题，右上操作按钮
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("家庭库存")
+                            .font(.system(size: 30, weight: .bold))
+                            .foregroundColor(Color.adaptiveTextGreen)
+                        Text("今天需要关注\(attentionItems.count)件")
+                            .font(.system(size: 13))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    GlassCircleButton(icon: showSearch ? "xmark" : "magnifyingglass") {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                             showSearch.toggle()
                             if !showSearch { searchText = "" }
                         }
-                    } }
-                )
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 4)
             }
             // 添加物品：二级页面（push）
             .navigationDestination(isPresented: $showAddSheet) {
@@ -308,25 +320,17 @@ struct ItemRow: View {
                             .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
                     }
                 }
-                // 进度条（单独一行，与信息分开）
-                HStack(spacing: 8) {
-                    Text("已用")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color.black.opacity(0.06))
-                            Capsule()
-                                .fill(statusColor(item.status))
-                                .frame(width: geo.size.width * progress)
-                                .animation(.snappy(duration: 0.5), value: progress)
-                        }
+                // 进度条（与参考布局一致：单独一行，仅展示进度）
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.black.opacity(0.06))
+                        Capsule()
+                            .fill(statusColor(item.status))
+                            .frame(width: geo.size.width * progress)
+                            .animation(.snappy(duration: 0.5), value: progress)
                     }
-                    .frame(height: 6)
-                    Text("\(item.inUse)/\(item.totalStock)")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
                 }
+                .frame(height: 6)
             }
             .padding(14)
         }
