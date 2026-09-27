@@ -123,7 +123,11 @@ struct SettingsView: View {
                 }
                 showMessage = true
             }
-            .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
+            // 用 .data 放宽可选文件类型：避免部分文件/目录被系统置灰无法选中；
+            // 具体是不是本应用备份的 JSON，导入时由 BackupManager 解码校验
+            .fileImporter(isPresented: $showImporter,
+                          allowedContentTypes: [.data],
+                          allowsMultipleSelection: false) { result in
                 switch result {
                 case .success(let url):
                     let didAccess = url.startAccessingSecurityScopedResource()
