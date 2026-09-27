@@ -9,7 +9,7 @@ import SwiftData
 ///  - 物品卡信息层级更清晰：品类色点、图标化库存/使用中、加粗进度条+剩余百分比
 ///  - 需关注物品整卡橙色高亮
 ///  - 顶栏随滚动连续形态变换：统计区一上移就开始收缩，滚动 10pt 完全收成玻璃胶囊
-///  - 页面转场动画：详情页从物品卡 zoom 放大进入/反向缩回关闭，添加/编辑页淡入淡出
+///  - 稳定性：详情页改用标准 push（zoom 转场在拆封数据变化后返回会闪烁/闪退，已移除）
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \InventoryItem.createdAt) private var items: [InventoryItem]
@@ -22,8 +22,6 @@ struct HomeView: View {
     @State private var selectedItem: InventoryItem? = nil
     /// 顶栏收缩进度：0=大标题展开，1=完全收成胶囊（随滚动偏移连续变化）
     @State private var titleProgress: CGFloat = 0
-    /// 页面转场命名空间：详情页 zoom 打开/关闭动画与物品卡匹配
-    @Namespace private var namespace
 
     private var availableRooms: [String] {
         Array(Set(items.map(\.location))).sorted()
@@ -170,10 +168,9 @@ struct HomeView: View {
                 ItemEditView(mode: .add)
                     .navigationTransition(.fade)
             }
-            // 物品详情：二级页面（push），zoom 转场：从物品卡放大打开 / 反向缩回关闭
+            // 物品详情：二级页面（push），标准转场（稳定，避免 zoom 与拆封数据变化竞争）
             .navigationDestination(item: $selectedItem) { item in
                 ItemDetailView(item: item)
-                    .navigationTransition(.zoom(sourceID: item.id, in: namespace))
             }
             // 接收 tab 栏中间「+」触发的添加
             .onReceive(NotificationCenter.default.publisher(for: .openAddItem)) { _ in
@@ -215,7 +212,6 @@ struct HomeView: View {
                            value: unopenedItems.count, label: "尚未拆封")
             }
         }
-        .animation(.snappy(duration: 0.4), value: attentionItems.count)
     }
 
     private func statColumn(icon: String, color: Color, value: Int, label: String) -> some View {
@@ -263,10 +259,6 @@ struct HomeView: View {
         VStack(spacing: 12) {
             ForEach(list) { item in
                 ItemRow(item: item, emphasized: emphasized)
-                    // zoom 转场源：点按进入详情时从这张卡片放大，返回时缩回
-                    .matchedTransitionSource(id: item.id, in: namespace) { source in
-                        source.clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    }
                     .contentShape(Rectangle())
                     .onTapGesture { selectedItem = item }
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
