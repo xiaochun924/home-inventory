@@ -6,7 +6,7 @@ import SwiftData
 ///  - 可见化卡片：浅色填充 + 描边 + 柔和投影，不再与白底融为一体
 ///  - 顶部三项概览条：需要关注 / 消耗品种类 / 尚未拆封
 ///  - 分区标题带计数胶囊（颜色随分区语义）
-///  - 物品卡信息层级更清晰：品类色点、图标化库存/使用中、加粗进度条+百分比
+///  - 物品卡信息层级更清晰：品类色点、图标化库存/使用中、加粗进度条+剩余百分比
 ///  - 需关注物品整卡橙色高亮
 ///  - 下滑页面时大标题收成玻璃胶囊顶栏（与详情/编辑页同款结构）
 struct HomeView: View {
@@ -386,13 +386,16 @@ struct HomeCard<Content: View>: View {
 }
 
 /// 首页物品卡（参考「有余」：左信息 + 右状态/天数 + 底部进度条，信息层级更清晰）
+/// 进度条表示「剩余库存占比」：满库时 100%，随消耗逐渐缩短，用完归零。
 struct ItemRow: View {
     let item: InventoryItem
     var emphasized: Bool = false
 
+    /// 剩余占比 = 库存 / (库存 + 使用中)，满库 100%，用一点少一点
     private var progress: Double {
-        guard item.totalStock > 0 else { return 0 }
-        return min(max(Double(item.inUse) / Double(item.totalStock), 0), 1)
+        let total = item.totalStock + item.inUse
+        guard total > 0 else { return 0 }
+        return min(max(Double(item.totalStock) / Double(total), 0), 1)
     }
 
     var body: some View {
@@ -432,7 +435,7 @@ struct ItemRow: View {
                         }
                     }
                 }
-                // 进度条：加粗 + 右侧百分比
+                // 进度条（剩余量）：加粗 + 右侧剩余百分比
                 HStack(spacing: 8) {
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
@@ -444,10 +447,10 @@ struct ItemRow: View {
                         }
                     }
                     .frame(height: 8)
-                    Text("\(Int(progress * 100))%")
+                    Text("剩余\(Int(progress * 100))%")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
-                        .frame(width: 34, alignment: .trailing)
+                        .frame(width: 52, alignment: .trailing)
                 }
             }
         }
