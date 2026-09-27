@@ -11,6 +11,8 @@ struct SettingsView: View {
     @State private var showClearConfirm = false
     @State private var showExporter = false
     @State private var exportDocument: BackupDocument?
+    @State private var backupFilename = "HomeInventoryBackup"
+    @State private var showHome = false
     @State private var confirmApply = false
     @State private var pendingRestore: [InventoryItem] = []
     @State private var pendingAreas: [AreaDTO] = []
@@ -24,16 +26,29 @@ struct SettingsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 18) {
-                    GlassCard {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("数据统计")
-                                .font(.system(size: 16, weight: .semibold))
-                            statRow("物品总数", "\(items.count)")
-                            statRow("需关注", "\(items.filter { $0.needsAttention }.count)")
-                            statRow("尚未拆封", "\(items.filter { !$0.isOpened }.count)")
+                    // 数据统计：点击进入主页内容
+                    Button {
+                        showHome = true
+                    } label: {
+                        GlassCard {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Text("数据统计")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(.secondary)
+                                }
+                                statRow("物品总数", "\(items.count)")
+                                statRow("需关注", "\(items.filter { $0.needsAttention }.count)")
+                                statRow("尚未拆封", "\(items.filter { !$0.isOpened }.count)")
+                            }
+                            .padding(16)
                         }
-                        .padding(16)
                     }
+                    .buttonStyle(.plain)
 
                     // 区域管理：添加区域后底部导航出现对应分区入口；↑↓ 可调整顺序
                     GlassCard {
@@ -148,9 +163,6 @@ struct SettingsView: View {
                                         .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
                                 }
                             }
-                            Text("备份导出为 JSON 文件（含区域及顺序）；恢复会用备份内容替换当前全部数据。")
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
                         }
                         .padding(16)
                     }
@@ -205,6 +217,10 @@ struct SettingsView: View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 GlassTopBar(title: "设置")
             }
+            // 数据统计 → 主页内容
+            .navigationDestination(isPresented: $showHome) {
+                HomeView()
+            }
             .alert(messageText, isPresented: $showMessage) {
                 Button("好", role: .cancel) {}
             }
@@ -212,7 +228,7 @@ struct SettingsView: View {
         .fileExporter(isPresented: $showExporter,
                       document: exportDocument,
                       contentType: .json,
-                      defaultFilename: "HomeInventoryBackup") { result in
+                      defaultFilename: backupFilename) { result in
             switch result {
             case .success:
                 messageText = "备份成功"
@@ -265,7 +281,11 @@ struct SettingsView: View {
 
     // MARK: - 备份 / 恢复
 
+    /// 备份文件名带当前日期时间，便于区分多次备份
     private func prepareBackup() {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HHmm"
+        backupFilename = "HomeInventoryBackup_\(formatter.string(from: Date()))"
         do {
             let data = try BackupManager.encode(items: items, areas: areas)
             exportDocument = BackupDocument(data: data)
