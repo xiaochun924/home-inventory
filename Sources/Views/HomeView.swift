@@ -1,7 +1,13 @@
 import SwiftUI
 import SwiftData
 
-/// 首页：库存总览、分类筛选、物品列表（参考「有余」布局：统计卡、分区、进度条、底部筛选）
+/// 首页：库存总览、分类筛选、物品列表
+/// 布局重构（参考「有余」结构，增强可视性）：
+///  - 可见化卡片：浅色填充 + 描边 + 柔和投影，不再与白底融为一体
+///  - 顶部三项概览条：需要关注 / 消耗品种类 / 尚未拆封
+///  - 分区标题带计数胶囊（颜色随分区语义）
+///  - 物品卡信息层级更清晰：品类色点、图标化库存/使用中、加粗进度条+百分比
+///  - 需关注物品整卡橙色高亮
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \InventoryItem.createdAt) private var items: [InventoryItem]
@@ -45,13 +51,13 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: 16) {
                     // 搜索（展开时显示，带顶部滑入过渡）
                     if showSearch {
                         searchField
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
-                    // 已选筛选标签（带缩放淡入过渡）
+                    // 已选筛选标签
                     if let cat = categoryFilter {
                         FilterChip(label: "品类：\(cat.rawValue)") { categoryFilter = nil }
                             .transition(.scale(scale: 0.7).combined(with: .opacity))
@@ -61,28 +67,25 @@ struct HomeView: View {
                             .transition(.scale(scale: 0.7).combined(with: .opacity))
                     }
 
-                    // 统计卡片（两块独立分开）
-                    statsRow
+                    // 三项概览条
+                    statsBanner
 
-                    // 各分区（分开呈现，区块标题右侧放辅助信息）
+                    // 需要关注（仅在有关注项时出现，橙色高亮）
                     if !attentionItems.isEmpty {
-                        sectionHeader("需关注", trailing: "\(attentionItems.count) 件")
-                        itemRows(attentionItems)
+                        sectionHeader("需要关注", count: attentionItems.count, color: .orange)
+                        itemRows(attentionItems, emphasized: true)
                     }
 
-                    sectionHeader("库存充足", trailing: "最近更新")
-                    itemRows(sufficientItems)
+                    sectionHeader("库存充足", count: sufficientItems.count, color: Color(red: 0.36, green: 0.62, blue: 0.48))
+                    if sufficientItems.isEmpty {
+                        emptyCard(text: "还没有物品，点下方 + 添加第一个物品", showAdd: true)
+                    } else {
+                        itemRows(sufficientItems)
+                    }
 
-                    sectionHeader("尚未拆封", trailing: unopenedItems.isEmpty ? "还没有拆封记录" : "\(unopenedItems.count) 件")
+                    sectionHeader("尚未拆封", count: unopenedItems.count, color: .gray)
                     if unopenedItems.isEmpty {
-                        GlassCard {
-                            Text("还没有拆封记录")
-                                .font(.system(size: 14))
-                                .foregroundColor(.secondary)
-                                .frame(maxWidth: .infinity)
-                                .padding(20)
-                        }
-                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                        emptyCard(text: "还没有拆封记录", showAdd: false)
                     } else {
                         itemRows(unopenedItems)
                     }
@@ -95,19 +98,20 @@ struct HomeView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
-                // 筛选切换时，列表/标签平滑过渡（官方动画）
+                // 筛选切换时平滑过渡
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: categoryFilter)
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: roomFilter)
             }
+            .scrollIndicators(.hidden)
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                // 参考「有余」顶栏：左上大标题 + 副标题，右上操作按钮
+                // 顶栏：左大标题 + 副标题（含概览），右上搜索
                 HStack(alignment: .center) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("家庭库存")
                             .font(.system(size: 30, weight: .bold))
                             .foregroundColor(Color.adaptiveTextGreen)
-                        Text("今天需要关注\(attentionItems.count)件")
+                        Text("今天需要关注\(attentionItems.count)件 · 共\(filteredItems.count)个品种")
                             .font(.system(size: 13))
                             .foregroundColor(.secondary)
                     }
@@ -127,7 +131,7 @@ struct HomeView: View {
             .navigationDestination(isPresented: $showAddSheet) {
                 ItemEditView(mode: .add)
             }
-            // 物品详情：二级页面（push），顶栏与主页结构一致（GlassTopBar）
+            // 物品详情：二级页面（push），顶栏与主页结构一致
             .navigationDestination(item: $selectedItem) { item in
                 ItemDetailView(item: item)
             }
@@ -156,57 +160,102 @@ struct HomeView: View {
         )
     }
 
-    // MARK: - 统计
+    // MARK: - 概览
 
-    private var statsRow: some View {
-        HStack(spacing: 14) {
-            statCard(value: "\(attentionItems.count)", label: "需要关注")
-                .animation(.snappy(duration: 0.4), value: attentionItems.count)
-            statCard(value: "\(filteredItems.count)", label: "消耗品种类")
-                .animation(.snappy(duration: 0.4), value: filteredItems.count)
-        }
-    }
-
-    private func statCard(value: String, label: String) -> some View {
-        GlassCard {
-            VStack(spacing: 6) {
-                Text(value)
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
-                    .contentTransition(.numericText())   // 数字滚动动画
-                Text(label)
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+    private var statsBanner: some View {
+        HomeCard {
+            HStack(spacing: 0) {
+                statColumn(icon: "exclamationmark.circle.fill", color: .orange,
+                           value: attentionItems.count, label: "需要关注")
+                statDivider
+                statColumn(icon: "square.grid.2x2.fill", color: Color(red: 0.36, green: 0.62, blue: 0.48),
+                           value: filteredItems.count, label: "消耗品种类")
+                statDivider
+                statColumn(icon: "shippingbox.fill", color: .gray,
+                           value: unopenedItems.count, label: "尚未拆封")
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 18)
         }
+        .animation(.snappy(duration: 0.4), value: attentionItems.count)
     }
 
-    // MARK: - 区块
+    private func statColumn(icon: String, color: Color, value: Int, label: String) -> some View {
+        VStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 15))
+                .foregroundColor(color)
+            Text("\(value)")
+                .font(.system(size: 26, weight: .bold))
+                .foregroundColor(.primary)
+                .contentTransition(.numericText())
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+    }
 
-    private func sectionHeader(_ title: String, trailing: String) -> some View {
+    private var statDivider: some View {
+        Rectangle()
+            .fill(Color.black.opacity(0.06))
+            .frame(width: 1, height: 34)
+    }
+
+    // MARK: - 分区
+
+    private func sectionHeader(_ title: String, count: Int, color: Color) -> some View {
         HStack {
             Text(title)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 18, weight: .bold))
                 .foregroundColor(Color.adaptiveTextGreen)
             Spacer()
-            Text(trailing)
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
+            Text("\(count) 件")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(color))
         }
         .padding(.top, 6)
     }
 
-    private func itemRows(_ list: [InventoryItem]) -> some View {
+    private func itemRows(_ list: [InventoryItem], emphasized: Bool = false) -> some View {
         VStack(spacing: 12) {
             ForEach(list) { item in
-                ItemRow(item: item)
-                    .contentShape(Rectangle())   // 整张卡片（含空白处）都可点击进入详情
+                ItemRow(item: item, emphasized: emphasized)
+                    .contentShape(Rectangle())
                     .onTapGesture { selectedItem = item }
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
+    }
+
+    private func emptyCard(text: String, showAdd: Bool) -> some View {
+        HomeCard {
+            VStack(spacing: 10) {
+                Image(systemName: "tray")
+                    .font(.system(size: 26))
+                    .foregroundColor(.secondary)
+                Text(text)
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
+                if showAdd {
+                    Button {
+                        showAddSheet = true
+                    } label: {
+                        Text("去添加")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 7)
+                            .background(Capsule().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+        }
+        .transition(.opacity.combined(with: .scale(scale: 0.95)))
     }
 
     // MARK: - 底部筛选与提示
@@ -241,12 +290,12 @@ struct HomeView: View {
         Menu {
             menu()
         } label: {
-            Text(title)
+            Label(title, systemImage: "line.3.horizontal.decrease")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
                 .padding(.horizontal, 14)
-                .padding(.vertical, 7)
-                .glassEffect(.clear, in: .capsule)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(Color(red: 0.28, green: 0.52, blue: 0.40).opacity(0.10)))
         }
     }
 
@@ -287,9 +336,32 @@ struct FilterChip: View {
     }
 }
 
-/// 首页物品行（参考「有余」：左信息 + 右状态/天数 + 底部进度条）
+/// 首页可见化卡片：浅色填充 + 描边 + 柔和投影（白底上可清晰辨认）
+struct HomeCard<Content: View>: View {
+    var emphasized: Bool = false
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        content()
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(emphasized
+                          ? Color(red: 1.00, green: 0.96, blue: 0.93)   // 需关注：浅橙
+                          : Color(red: 0.97, green: 0.985, blue: 0.97)) // 普通：近白浅绿
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(Color.black.opacity(0.06), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
+    }
+}
+
+/// 首页物品卡（参考「有余」：左信息 + 右状态/天数 + 底部进度条，信息层级更清晰）
 struct ItemRow: View {
     let item: InventoryItem
+    var emphasized: Bool = false
 
     private var progress: Double {
         guard item.totalStock > 0 else { return 0 }
@@ -297,50 +369,79 @@ struct ItemRow: View {
     }
 
     var body: some View {
-        GlassCard {
-            VStack(spacing: 10) {
+        HomeCard(emphasized: emphasized) {
+            VStack(spacing: 12) {
                 HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(item.name)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.primary)
-                        Text("\(item.category.rawValue)·\(item.location)")
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(categoryColor(item.category))
+                                .frame(width: 8, height: 8)
+                            Text(item.name)
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.primary)
+                        }
+                        Text("\(item.category.rawValue) · \(item.location)")
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
-                        Text("库存 \(item.totalStock)·使用中 \(item.inUse)")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
+                        HStack(spacing: 12) {
+                            Label("库存 \(item.totalStock)", systemImage: "shippingbox")
+                            Label("使用中 \(item.inUse)", systemImage: "hand.raised")
+                        }
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
                     }
                     Spacer()
-                    VStack(alignment: .trailing, spacing: 4) {
-                        StatusCapsule(text: item.status.title,
-                                      color: statusColor(item.status))
-                        Text("约\(item.remainingDays)天")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
+                    VStack(alignment: .trailing, spacing: 5) {
+                        StatusCapsule(text: item.status.title, color: statusColor(item.status))
+                        if item.isOpened {
+                            Text("约\(item.remainingDays)天")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(statusColor(item.status))
+                        } else {
+                            Text("未拆封")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
-                // 进度条（与参考布局一致：单独一行，仅展示进度）
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.black.opacity(0.06))
-                        Capsule()
-                            .fill(statusColor(item.status))
-                            .frame(width: geo.size.width * progress)
-                            .animation(.snappy(duration: 0.5), value: progress)
+                // 进度条：加粗 + 右侧百分比
+                HStack(spacing: 8) {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color.black.opacity(0.07))
+                            Capsule()
+                                .fill(statusColor(item.status))
+                                .frame(width: geo.size.width * progress)
+                                .animation(.snappy(duration: 0.5), value: progress)
+                        }
                     }
+                    .frame(height: 8)
+                    Text("\(Int(progress * 100))%")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .frame(width: 34, alignment: .trailing)
                 }
-                .frame(height: 6)
             }
-            .padding(14)
         }
     }
 
     private func statusColor(_ status: StockStatus) -> Color {
         switch status {
-        case .attention: return Color.orange
+        case .attention: return .orange
         case .sufficient: return Color(red: 0.36, green: 0.62, blue: 0.48)
-        case .unopened: return Color.gray
+        case .unopened: return .gray
+        }
+    }
+
+    private func categoryColor(_ category: Category) -> Color {
+        switch category {
+        case .momAndBaby: return Color(red: 0.93, green: 0.45, blue: 0.55)
+        case .paper: return Color(red: 0.35, green: 0.55, blue: 0.85)
+        case .washCare: return Color(red: 0.25, green: 0.65, blue: 0.60)
+        case .food: return Color(red: 0.95, green: 0.65, blue: 0.25)
+        case .household: return Color(red: 0.60, green: 0.50, blue: 0.85)
+        case .other: return .gray
         }
     }
 }
