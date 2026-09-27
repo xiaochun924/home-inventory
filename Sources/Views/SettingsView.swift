@@ -11,7 +11,9 @@ struct SettingsView: View {
     @State private var showExporter = false
     @State private var exportDocument: BackupDocument?
     @State private var showImporter = false
-    @State private var confirmRestore = false
+    @State private var confirmApply = false
+    @State private var pendingRestore: [InventoryItem] = []
+    @State private var pendingCount = 0
     @State private var showMessage = false
     @State private var messageText = ""
 
@@ -45,7 +47,8 @@ struct SettingsView: View {
                                 }
                             }
                             Divider().opacity(0.4)
-                            Button(action: { confirmRestore = true }) {
+                            // 直接打开文件选择器（不从弹窗里再弹，避免选择器无法交互）
+                            Button(action: { showImporter = true }) {
                                 HStack {
                                     Text("恢复数据")
                                         .font(.system(size: 15, weight: .medium))
@@ -61,11 +64,12 @@ struct SettingsView: View {
                         }
                         .padding(16)
                     }
-                    .alert("确定恢复？", isPresented: $confirmRestore) {
-                        Button("取消", role: .cancel) {}
-                        Button("恢复", role: .destructive) { showImporter = true }
+                    // 选完文件并解码成功后再确认是否应用
+                    .alert("确认恢复？", isPresented: $confirmApply) {
+                        Button("取消", role: .cancel) { pendingRestore = [] }
+                        Button("恢复", role: .destructive) { applyRestore() }
                     } message: {
-                        Text("将用所选备份文件替换当前全部物品与记录，且不可撤销。")
+                        Text("备份中共 \(pendingCount) 件物品，将替换当前全部数据（物品与记录）。")
                     }
 
                     GlassCard {
@@ -111,53 +115,51 @@ struct SettingsView: View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 GlassTopBar(title: "设置")
             }
-            .fileExporter(isPresented: $showExporter,
-                          document: exportDocument,
-                          contentType: .json,
-                          defaultFilename: "HomeInventoryBackup") { result in
-                switch result {
-                case .success:
-                    messageText = "备份成功"
-                case .failure(let error):
-                    messageText = "备份失败：\(error.localizedDescription)"
-                }
-                showMessage = true
-            }
-            // 用 .data 放宽可选文件类型：避免部分文件/目录被系统置灰无法选中；
-            // 具体是不是本应用备份的 JSON，导入时由 BackupManager 解码校验
-            .fileImporter(isPresented: $showImporter,
-                          allowedContentTypes: [.data],
-                          allowsMultipleSelection: false) { result in
-                // 注意：fileImporter 回调返回 Result<[URL], Error>，即使单选也是数组
-                switch result {
-                case .success(let urls):
-                    guard let url = urls.first else {
-                        messageText = "未选择文件"
-                        showMessage = true
-                        return
-                    }
-                    let didAccess = url.startAccessingSecurityScopedResource()
-                    defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-                    do {
-                        let data = try Data(contentsOf: url)
-                        let restored = try BackupManager.decode(data)
-                        // 先清空当前数据再写入备份，避免唯一主键冲突
-                        for item in items { modelContext.delete(item) }
-                        try modelContext.save()
-                        for item in restored { modelContext.insert(item) }
-                        try modelContext.save()
-                        messageText = "恢复成功，共 \(restored.count) 件物品"
-                    } catch {
-                        messageText = "恢复失败：\(error.localizedDescription)"
-                    }
-                    showMessage = true
-                case .failure(let error):
-                    messageText = "选择文件失败：\(error.localizedDescription)"
-                    showMessage = true
-                }
-            }
             .alert(messageText, isPresented: $showMessage) {
                 Button("好", role: .cancel) {}
+            }
+        }
+        // 文件面板挂在 NavigationStack 根上，与内部弹窗分离，避免展示冲突
+        .fileExporter(isPresented: $showExporter,
+                      document: exportDocument,
+                      contentType: .json,
+                      defaultFilename: "HomeInventoryBackup") { result in
+            switch result {
+            case .success:
+                messageText = "备份成功"
+            case .failure(let error):
+                messageText = "备份失败：\(error.localizedDescription)"
+            }
+            showMessage = true
+        }
+        // 用 .data 放宽可选文件类型：避免部分文件/目录被系统置灰无法选中；
+        // 是不是本应用备份的 JSON，由 BackupManager 解码校验
+        .fileImporter(isPresented: $showImporter,
+                      allowedContentTypes: [.data],
+                      allowsMultipleSelection: false) { result in
+            // 注意：fileImporter 回调返回 Result<[URL], Error>，即使单选也是数组
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else {
+                    messageText = "未选择文件"
+                    showMessage = true
+                    return
+                }
+                let didAccess = url.startAccessingSecurityScopedResource()
+                defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    let data = try Data(contentsOf: url)
+                    let restored = try BackupManager.decode(data)
+                    pendingRestore = restored
+                    pendingCount = restored.count
+                    confirmApply = true
+                } catch {
+                    messageText = "恢复失败：\(error.localizedDescription)"
+                    showMessage = true
+                }
+            case .failure(let error):
+                messageText = "选择文件失败：\(error.localizedDescription)"
+                showMessage = true
             }
         }
     }
@@ -182,6 +184,17 @@ struct SettingsView: View {
             messageText = "备份失败：\(error.localizedDescription)"
             showMessage = true
         }
+    }
+
+    /// 确认后应用恢复：先清空当前数据再写入备份，避免唯一主键冲突
+    private func applyRestore() {
+        for item in items { modelContext.delete(item) }
+        try? modelContext.save()
+        for item in pendingRestore { modelContext.insert(item) }
+        try? modelContext.save()
+        messageText = "恢复成功，共 \(pendingRestore.count) 件物品"
+        pendingRestore = []
+        showMessage = true
     }
 
     private func clearAll() {
