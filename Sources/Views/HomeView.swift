@@ -11,6 +11,7 @@ import SwiftData
 ///  - 顶栏随滚动连续形态变换：统计区一上移就开始收缩，滚动 10pt 完全收成玻璃胶囊
 ///  - 状态胶囊：主页使用纯色胶囊（非液态玻璃），颜色按需关注/充足/未拆封区分
 ///  - 类别/位置筛选固定在底部 safeAreaInset，与 tab 栏同一层级，透明底不遮挡内容
+///  - 添加入口：顶栏右上角独立纯色 + 胶囊（参考「有余」，+ 不在 tab 栏内）
 ///  - 过渡动画：详情页从物品卡 zoom 放大进入/反向缩回关闭（官方 NavigationTransition）
 ///  - 外观：跟随系统深浅色，背景/卡片/分隔线/轨道均自适应
 struct HomeView: View {
@@ -87,7 +88,7 @@ struct HomeView: View {
 
                     sectionHeader("库存充足", count: sufficientItems.count, color: Color(red: 0.36, green: 0.62, blue: 0.48))
                     if sufficientItems.isEmpty {
-                        emptyCard(text: "还没有物品，点下方 + 添加第一个物品", showAdd: true)
+                        emptyCard(text: "还没有物品，点右上角 + 添加第一个物品", showAdd: true)
                     } else {
                         itemRows(sufficientItems)
                     }
@@ -151,13 +152,16 @@ struct HomeView: View {
                     .opacity(Double(1 - titleProgress))
                     .scaleEffect(1 - 0.08 * titleProgress, anchor: .topLeading)
 
-                    // 右上搜索按钮（两态共用，位置固定）
+                    // 右上角按钮组：独立 + 胶囊 + 搜索（参考「有余」：+ 在顶栏边角）
                     HStack {
                         Spacer()
-                        GlassCircleButton(icon: showSearch ? "xmark" : "magnifyingglass") {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                showSearch.toggle()
-                                if !showSearch { searchText = "" }
+                        HStack(spacing: 10) {
+                            SolidAddCapsule { showAddSheet = true }
+                            GlassCircleButton(icon: showSearch ? "xmark" : "magnifyingglass") {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    showSearch.toggle()
+                                    if !showSearch { searchText = "" }
+                                }
                             }
                         }
                     }
@@ -180,10 +184,6 @@ struct HomeView: View {
             .navigationDestination(item: $selectedItem) { item in
                 ItemDetailView(item: item)
                     .navigationTransition(.zoom(sourceID: item.id, in: namespace))
-            }
-            // 接收 tab 栏中间「+」触发的添加
-            .onReceive(NotificationCenter.default.publisher(for: .openAddItem)) { _ in
-                showAddSheet = true
             }
         }
         .tint(Color(red: 0.30, green: 0.55, blue: 0.42))
