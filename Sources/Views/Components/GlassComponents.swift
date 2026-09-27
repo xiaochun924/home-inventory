@@ -128,6 +128,24 @@ struct GlassCapsuleButton: View {
     }
 }
 
+/// 纯色胶囊按钮（非液态玻璃）：纯色底 + 白字，用于详情页等二级页面
+struct SolidCapsuleButton: View {
+    let title: String
+    var tint: Color = Color(red: 0.36, green: 0.62, blue: 0.48)
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 48)
+                .background(Capsule().fill(tint))
+        }
+    }
+}
+
 /// 状态胶囊标签（液态玻璃版，详情页等场景使用）
 struct StatusCapsule: View {
     let text: String
