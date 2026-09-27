@@ -40,7 +40,8 @@ struct ItemDetailView: View {
                     trailing: { GlassCircleButton(icon: "pencil", tint: Color(red: 0.36, green: 0.62, blue: 0.48)) { showEdit = true } }
                 )
             }
-            .sheet(isPresented: $showEdit) {
+            // 编辑物品：二级页面（push），支持右滑返回
+            .navigationDestination(isPresented: $showEdit) {
                 ItemEditView(mode: .edit(item))
             }
             .sheet(isPresented: $showUnpack) {
