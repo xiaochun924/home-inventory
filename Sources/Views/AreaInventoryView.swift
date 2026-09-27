@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 /// 分区库存管理页：显示某个区域的全部物品，独立管理（拆封/补货/详情）
-/// 入口在底部 tab 栏（设置页添加区域后自动出现）；空态可直接添加该区域物品
+/// 入口在底部 tab 栏（设置页添加区域后自动出现）；顶栏右上角 + 胶囊可直接添加该区域物品
 /// 布局复用主页卡片样式：概览条 + 物品卡列表 + zoom 详情转场
 struct AreaInventoryView: View {
     @Environment(\.modelContext) private var modelContext
@@ -45,7 +45,16 @@ struct AreaInventoryView: View {
             .scrollIndicators(.hidden)
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                GlassTopBar(title: area)
+                // 顶栏：区域名 + 右上角独立 + 胶囊（添加该区域物品，位置自动预填）
+                GlassTopBar(
+                    title: area,
+                    trailing: {
+                        SolidAddCapsule {
+                            pendingAddLocation = area
+                            showAdd = true
+                        }
+                    }
+                )
             }
             // 添加该区域物品：二级页面，存储位置预填为当前区域
             .navigationDestination(isPresented: $showAdd) {
