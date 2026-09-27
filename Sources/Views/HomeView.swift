@@ -8,7 +8,7 @@ import SwiftData
 ///  - 分区标题带计数胶囊（颜色随分区语义）
 ///  - 物品卡信息层级更清晰：品类色点、图标化库存/使用中、加粗进度条+剩余百分比
 ///  - 需关注物品整卡橙色高亮
-///  - 下滑超过 5pt 大标题收成玻璃胶囊顶栏（弹簧动画形态变换）
+///  - 一滑动即开始收缩：大标题收成玻璃胶囊顶栏（弹簧动画，无溢出遮挡）
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \InventoryItem.createdAt) private var items: [InventoryItem]
@@ -105,9 +105,9 @@ struct HomeView: View {
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: roomFilter)
             }
             .scrollIndicators(.hidden)
-            // 下滑超过 5pt → 大标题收成胶囊顶栏
+            // 一滑动（偏移 > 0.5pt）即开始收缩
             .onScrollGeometryChange(for: Bool.self) { geo in
-                geo.contentOffset.y > 5
+                geo.contentOffset.y > 0.5
             } action: { _, collapsed in
                 if collapsed != isTitleCollapsed {
                     isTitleCollapsed = collapsed
@@ -115,9 +115,9 @@ struct HomeView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                // 固定高度容器，双态形态变换：大标题缩小淡出 ↔ 胶囊放大滑入（弹簧动画）
+                // 固定高度 64pt 顶栏容器：大标题与胶囊双态形态变换，内容不溢出、不遮挡下方
                 ZStack {
-                    // 胶囊标题（下滑后居中显示）
+                    // 胶囊标题（下滑后居中显示，与详情页顶栏同款）
                     Text("家庭库存")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(Color.adaptiveTextGreen)
@@ -126,24 +126,23 @@ struct HomeView: View {
                         .glassEffect(.clear, in: .capsule)
                         .opacity(isTitleCollapsed ? 1 : 0)
                         .scaleEffect(isTitleCollapsed ? 1 : 0.85)
-                        .offset(y: isTitleCollapsed ? 0 : 4)
 
-                    // 大标题 + 副标题（顶部左对齐）
+                    // 大标题 + 副标题（顶部左对齐，字号收紧确保完全装进 64pt）
                     HStack {
-                        VStack(alignment: .leading, spacing: 3) {
+                        VStack(alignment: .leading, spacing: 2) {
                             Text("家庭库存")
-                                .font(.system(size: 30, weight: .bold))
+                                .font(.system(size: 28, weight: .bold))
                                 .foregroundColor(Color.adaptiveTextGreen)
                             Text("今天需要关注\(attentionItems.count)件 · 共\(filteredItems.count)个品种")
-                                .font(.system(size: 13))
+                                .font(.system(size: 12))
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
                     }
                     .padding(.horizontal, 20)
-                    .padding(.top, 8)
+                    .padding(.top, 4)
                     .opacity(isTitleCollapsed ? 0 : 1)
-                    .scaleEffect(isTitleCollapsed ? 0.9 : 1, anchor: .topLeading)
+                    .scaleEffect(isTitleCollapsed ? 0.92 : 1, anchor: .topLeading)
 
                     // 右上搜索按钮（两态共用，位置固定）
                     HStack {
@@ -156,10 +155,10 @@ struct HomeView: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 11)
+                    .padding(.top, 6)
                 }
                 .frame(height: 64, alignment: .top)
-                .animation(.spring(response: 0.38, dampingFraction: 0.85), value: isTitleCollapsed)
+                .animation(.spring(response: 0.35, dampingFraction: 0.9), value: isTitleCollapsed)
             }
             // 添加物品：二级页面（push）
             .navigationDestination(isPresented: $showAddSheet) {
