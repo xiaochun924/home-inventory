@@ -51,7 +51,7 @@ struct HomeView: View {
                 VStack(spacing: 16) {
                     // 搜索（展开时显示，带顶部滑入过渡）
                     if showSearch {
-                        searchField
+                        SearchField(text: $searchText)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                     // 已选筛选标签
@@ -69,25 +69,26 @@ struct HomeView: View {
 
                     // 需要关注（仅在有关注项时出现，橙色高亮）
                     if !attentionItems.isEmpty {
-                        sectionHeader("需要关注", count: attentionItems.count, color: .orange)
+                        SectionHeader(title: "需要关注", count: attentionItems.count, tint: .orange)
                         itemRows(attentionItems, emphasized: true)
                     }
 
-                    sectionHeader("库存充足", count: sufficientItems.count, color: Color(red: 0.36, green: 0.62, blue: 0.48))
+                    SectionHeader(title: "库存充足", count: sufficientItems.count, tint: Color.brandGreen)
                     if sufficientItems.isEmpty {
-                        emptyCard(text: "还没有物品，点右上角 + 添加第一个物品", showAdd: true)
+                        EmptyCard(icon: "tray", text: "还没有物品，点右上角 + 添加第一个物品",
+                                  addButtonTitle: "去添加", addAction: { showAddSheet = true })
                     } else {
                         itemRows(sufficientItems)
                     }
 
-                    sectionHeader("尚未拆封", count: unopenedItems.count, color: .gray)
+                    SectionHeader(title: "尚未拆封", count: unopenedItems.count, tint: .gray)
                     if unopenedItems.isEmpty {
-                        emptyCard(text: "还没有拆封记录", showAdd: false)
+                        EmptyCard(icon: "tray", text: "还没有拆封记录")
                     } else {
                         itemRows(unopenedItems)
                     }
 
-                    footerHint
+                    FooterHint(text: "拆封后开始计算预计可用天数")
 
                     Spacer().frame(height: 96)
                 }
@@ -173,24 +174,7 @@ struct HomeView: View {
                     .navigationTransition(.zoom(sourceID: item.id, in: namespace))
             }
         }
-        .tint(Color(red: 0.30, green: 0.55, blue: 0.42))
-    }
-
-    // MARK: - 搜索
-
-    private var searchField: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary)
-            TextField("搜索物品", text: $searchText)
-                .font(.system(size: 15))
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.adaptiveCardFill)
-                .background(RoundedRectangle(cornerRadius: 14).stroke(Color.adaptiveCardStroke, lineWidth: 1))
-        )
+        .tint(Color.brandTint)
     }
 
     // MARK: - 概览
@@ -198,58 +182,19 @@ struct HomeView: View {
     private var statsBanner: some View {
         HomeCard {
             HStack(spacing: 0) {
-                statColumn(icon: "exclamationmark.circle.fill", color: .orange,
+                StatColumn(icon: "exclamationmark.circle.fill", color: .orange,
                            value: attentionItems.count, label: "需要关注")
-                statDivider
-                statColumn(icon: "square.grid.2x2.fill", color: Color(red: 0.36, green: 0.62, blue: 0.48),
+                StatDivider()
+                StatColumn(icon: "square.grid.2x2.fill", color: Color.brandGreen,
                            value: filteredItems.count, label: "消耗品种类")
-                statDivider
-                statColumn(icon: "shippingbox.fill", color: .gray,
+                StatDivider()
+                StatColumn(icon: "shippingbox.fill", color: .gray,
                            value: unopenedItems.count, label: "尚未拆封")
             }
         }
     }
 
-    private func statColumn(icon: String, color: Color, value: Int, label: String) -> some View {
-        VStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(.system(size: 15))
-                .foregroundColor(color)
-            Text("\(value)")
-                .font(.system(size: 26, weight: .bold))
-                .foregroundColor(.primary)
-                .contentTransition(.numericText())
-            Text(label)
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
-    }
-
-    private var statDivider: some View {
-        Rectangle()
-            .fill(Color.adaptiveSeparator)
-            .frame(width: 1, height: 34)
-    }
-
     // MARK: - 分区
-
-    private func sectionHeader(_ title: String, count: Int, color: Color) -> some View {
-        HStack {
-            Text(title)
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(Color.adaptiveTextGreen)
-            Spacer()
-            Text("\(count) 件")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(color))
-        }
-        .padding(.top, 6)
-    }
 
     private func itemRows(_ list: [InventoryItem], emphasized: Bool = false) -> some View {
         VStack(spacing: 12) {
@@ -264,34 +209,6 @@ struct HomeView: View {
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
-    }
-
-    private func emptyCard(text: String, showAdd: Bool) -> some View {
-        HomeCard {
-            VStack(spacing: 10) {
-                Image(systemName: "tray")
-                    .font(.system(size: 26))
-                    .foregroundColor(.secondary)
-                Text(text)
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary)
-                if showAdd {
-                    Button {
-                        showAddSheet = true
-                    } label: {
-                        Text("去添加")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 7)
-                            .background(Capsule().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-        }
-        .transition(.opacity.combined(with: .scale(scale: 0.95)))
     }
 
     // MARK: - 底部筛选与提示
@@ -312,14 +229,6 @@ struct HomeView: View {
         }
     }
 
-    private var footerHint: some View {
-        Text("拆封后开始计算预计可用天数")
-            .font(.system(size: 12))
-            .foregroundColor(.secondary)
-            .frame(maxWidth: .infinity)
-            .padding(.top, 4)
-    }
-
     // MARK: - 筛选辅助
 
     private func chip(_ title: String, @ViewBuilder menu: @escaping () -> some View) -> some View {
@@ -328,10 +237,10 @@ struct HomeView: View {
         } label: {
             Label(title, systemImage: "line.3.horizontal.decrease")
                 .font(.system(size: 13, weight: .medium))
-                .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
+                .foregroundColor(Color.brandDeepGreen)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(Capsule().fill(Color(red: 0.28, green: 0.52, blue: 0.40).opacity(0.10)))
+                .background(Capsule().fill(Color.brandDeepGreen.opacity(0.10)))
         }
     }
 
@@ -368,7 +277,7 @@ struct FilterChip: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(Capsule().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
+        .background(Capsule().fill(Color.brandGreen))
     }
 }
 
@@ -474,7 +383,7 @@ struct ItemRow: View {
     private func statusColor(_ status: StockStatus) -> Color {
         switch status {
         case .attention: return .orange
-        case .sufficient: return Color(red: 0.36, green: 0.62, blue: 0.48)
+        case .sufficient: return Color.brandGreen
         case .unopened: return .gray
         }
     }
