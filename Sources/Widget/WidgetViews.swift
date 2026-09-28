@@ -4,24 +4,62 @@ import WidgetKit
 /// 小组件视图：白底（systemBackground）+ 品牌绿，与主 App 视觉一致
 /// 注意：这里用静态 RGB 字面量（与主 App 品牌色常量同值），
 /// 不使用 UIColor{...} 动态闭包——iOS 26 异步渲染线程解析动态色会崩溃（历史崩溃根因）
+/// 无数据（hasData == false，如自签未保留 App Group）时显示引导态，避免误导性 0
 struct InventoryWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: InventoryEntry
 
     var body: some View {
         Group {
-            switch family {
-            case .systemMedium:
-                mediumView
-            case .accessoryCircular:
-                circularView
-            default:
-                smallView
+            if entry.hasData {
+                dataView
+            } else {
+                emptyStateView
             }
         }
         .containerBackground(for: .widget) {
             // accessory 交给系统绘制；常规尺寸使用与 App 一致的白底
             family == .accessoryCircular ? Color.clear : Color(uiColor: .systemBackground)
+        }
+    }
+
+    @ViewBuilder
+    private var dataView: some View {
+        switch family {
+        case .systemMedium:
+            mediumView
+        case .accessoryCircular:
+            circularView
+        default:
+            smallView
+        }
+    }
+
+    // MARK: - 无数据引导态（App Group 权限缺失或 App 未同步）
+
+    @ViewBuilder
+    private var emptyStateView: some View {
+        if family == .accessoryCircular {
+            Text("–")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(.secondary)
+        } else {
+            VStack(spacing: 6) {
+                Image(systemName: "shippingbox.and.arrow.backward")
+                    .font(.system(size: 22))
+                    .foregroundColor(Color.wBrandGreen)
+                Text("库存未同步")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.primary)
+                if family == .systemMedium {
+                    Text("安装包需保留 App Group 权限")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .widgetURL(URL(string: "homeinventory://overview"))
         }
     }
 
