@@ -46,6 +46,8 @@ extension Color {
 // 全部使用 iOS 26 官方 Liquid Glass（glassEffect / GlassEffectContainer）。
 // 注意：玻璃按钮统一使用非交互玻璃（不加 .interactive()）——
 // 交互高光是 iOS 26 Liquid Glass 在页面切换/进出动画时产生高光闪烁（过曝）的主要原因，去掉后更稳。
+// 页面内容（卡片/按钮/胶囊）一律用普通材质（MaterialCard / 纯色 / .quaternary），
+// 不做液态玻璃——玻璃在列表/输入页存在点击命中异常与切换闪烁问题。
 struct GlassTopBar<Leading: View, Trailing: View>: View {
     let title: String
     @ViewBuilder var leading: () -> Leading
@@ -101,7 +103,7 @@ struct GlassCircleButton: View {
     }
 }
 
-/// 液态玻璃卡片（官方 Liquid Glass 容器）
+/// 液态玻璃卡片（官方 Liquid Glass 容器）——仅设置页等用户指定保留玻璃的场景使用
 struct GlassCard<Content: View>: View {
     var cornerRadius: CGFloat = 20
     @ViewBuilder var content: () -> Content
@@ -109,6 +111,27 @@ struct GlassCard<Content: View>: View {
     var body: some View {
         content()
             .glassEffect(.clear, in: .rect(cornerRadius: cornerRadius))
+    }
+}
+
+/// 普通磨砂卡片（参考 BatteryInsight 写法）：
+/// ultraThinMaterial 微透明白底 + 系统分隔线细描边；深浅色自适应、通透不显黑；
+/// 无液态玻璃高光——避免页面切换闪烁与点击命中异常。
+/// 用于物品相关页面（主页卡片 / 详情页信息卡 / 编辑页板块）。
+struct MaterialCard<Content: View>: View {
+    var cornerRadius: CGFloat = 20
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        content()
+            .background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(.separator.opacity(0.5), lineWidth: 1)
+            }
     }
 }
 
@@ -148,7 +171,7 @@ struct SolidCapsuleButton: View {
     }
 }
 
-/// 状态胶囊标签（液态玻璃版，详情页等场景使用）
+/// 状态胶囊标签（普通材质，非液态玻璃）：.quaternary 系统灰底（BatteryInsight 徽章写法），稳定不闪
 struct StatusCapsule: View {
     let text: String
     var color: Color
@@ -159,7 +182,7 @@ struct StatusCapsule: View {
             .foregroundColor(color)
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
-            .glassEffect(.clear, in: .capsule)
+            .background(.quaternary, in: Capsule())
     }
 }
 
