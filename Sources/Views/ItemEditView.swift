@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 /// 新增 / 编辑物品（二级页面）
-/// 板块使用与设置页一致的液态玻璃卡片（GlassCard），标题在卡片内左上角；
+/// 板块使用普通磨砂卡片（MaterialCard，参考 BatteryInsight 写法），标题在卡片内左上角；
 /// 输入框保持简约浅灰圆角，胶囊分段选中纯绿底白字
 /// 逻辑：
 ///  - 按剩余天数提醒 → 显示「使用历史消耗预测」+「平均消耗周期」
@@ -50,7 +50,7 @@ struct ItemEditView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     // 板块一：消耗品信息
-                    GlassCard {
+                    MaterialCard {
                         VStack(alignment: .leading, spacing: 14) {
                             cardTitle("消耗品信息")
                             field("名称 *") { nameField }
@@ -61,7 +61,7 @@ struct ItemEditView: View {
                     }
 
                     // 板块二：库存与位置
-                    GlassCard {
+                    MaterialCard {
                         VStack(alignment: .leading, spacing: 14) {
                             cardTitle("库存与位置")
                             field("数量 *") { stockInput($totalStock) }
@@ -80,7 +80,7 @@ struct ItemEditView: View {
                     }
 
                     // 板块三：消耗与提醒
-                    GlassCard {
+                    MaterialCard {
                         VStack(alignment: .leading, spacing: 14) {
                             cardTitle("消耗与提醒")
                             field("提醒规则") { reminderRulePicker }
@@ -107,7 +107,7 @@ struct ItemEditView: View {
                     }
 
                     // 板块四：保质期
-                    GlassCard {
+                    MaterialCard {
                         VStack(alignment: .leading, spacing: 14) {
                             cardTitle("保质期")
                             toggleRow("启用保质期", subtitle: "按每次拆封时间计算过期日期", isOn: $enableExpiry)
@@ -143,7 +143,7 @@ struct ItemEditView: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 18)
                                 .padding(.vertical, 9)
-                                .glassEffect(.regular.tint(Color(red: 0.36, green: 0.62, blue: 0.48)), in: .capsule)
+                                .background(Capsule().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
                         }
                     }
                 )
