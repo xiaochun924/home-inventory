@@ -9,6 +9,7 @@ import SwiftData
 ///  - 按库存数量提醒 → 隐藏消耗相关项
 ///  - 启用保质期 → 可选择「到期日期」或「保质期月数」两种记录方式
 /// 存储位置候选：优先取已设置区域，其次历史位置；从区域页进入时自动预填该区域
+/// 右滑返回：系统导航栏隐藏后手势失效，用 simultaneousGesture DragGesture 恢复（BatteryInsight 同款）
 struct ItemEditView: View {
     enum Mode {
         case add
@@ -149,6 +150,16 @@ struct ItemEditView: View {
                 )
             }
         }
+        // 系统导航栏已隐藏，手动恢复右滑返回手势（BatteryInsight 同款写法）
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 25)
+                .onEnded { value in
+                    if value.translation.width > 60,
+                       abs(value.translation.width) > abs(value.translation.height) {
+                        dismiss()
+                    }
+                }
+        )
         .onAppear(perform: load)
     }
 
