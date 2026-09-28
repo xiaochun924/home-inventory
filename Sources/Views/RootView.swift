@@ -8,8 +8,10 @@ import SwiftData
 ///  - 设置区域后：隐藏首页，直接进入分区管理；默认选中第一个区域（sortOrder 最小者）
 ///  - 区域顺序可在设置页调整（上移/下移），tab 顺序随之变化
 /// 添加入口：主页/区域页顶栏右上角独立纯色 + 胶囊按钮
+/// 小组件同步：库存数据任一变化（数量/位置/状态/区域排序）→ 写 App Group 摘要并刷新小组件
 struct RootView: View {
     @Query(sort: \InventoryArea.sortOrder) private var areas: [InventoryArea]
+    @Query private var items: [InventoryItem]
     @State private var selection: String = "home"
 
     var body: some View {
@@ -39,11 +41,27 @@ struct RootView: View {
         .tabBarMinimizeBehavior(.onScrollDown)
         .tint(Color.brandTint)
         // 跟随系统深浅色外观（不锁浅色），背景/卡片/文字均自适应
-        .onAppear { syncSelection() }
+        .onAppear {
+            syncSelection()
+            WidgetSync.sync(items: items, areas: areas)
+        }
         // 区域增删或排序变化时同步选中项
         .onChange(of: areas.map(\.id)) { _, _ in
             syncSelection()
         }
+        // 库存/使用中/位置/状态/区域排序任一变化 → 同步小组件摘要
+        .onChange(of: widgetSyncFingerprint) { _, _ in
+            WidgetSync.sync(items: items, areas: areas)
+        }
+    }
+
+    /// 数据指纹：任一库存字段变化都会产生新字符串，驱动小组件摘要同步
+    private var widgetSyncFingerprint: String {
+        let itemPart = items.map { item in
+            "\(item.id)|\(item.name)|\(item.totalStock)|\(item.inUse)|\(item.location)|\(item.isOpened)|\(item.needsAttention)"
+        }.joined(separator: ";")
+        let areaPart = areas.map { "\($0.id):\($0.sortOrder)" }.joined(separator: ";")
+        return itemPart + "|areas|" + areaPart
     }
 
     /// 保证 selection 始终落在存在的 tab 上：
@@ -62,7 +80,7 @@ struct RootView: View {
 }
 
 /// 全应用统一背景：系统标准背景色 systemBackground
-/// 浅色=纯白（与系统默认页面/区域页底色完全一致），深色=纯黑，跟随系统深浅色外观。
+/// 浅色=纯白（与系统默认页面/区域页面底色完全一致），深色=纯黑，跟随系统深浅色外观。
 /// 用系统语义色而非自定义动态闭包：线程安全（iOS 26 异步渲染线程解析动态色会崩溃）。
 struct AppBackground: View {
     var body: some View {
