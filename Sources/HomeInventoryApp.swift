@@ -9,6 +9,9 @@ struct HomeInventoryApp: App {
 
     @MainActor
     init() {
+        // 启动即安装崩溃日志采集：闪退时自动写入本地 Documents/CrashLogs/
+        CrashLogger.install()
+
         let schema = Schema([
             InventoryItem.self,
             UnpackRecord.self,
