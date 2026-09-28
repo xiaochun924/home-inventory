@@ -46,6 +46,8 @@ extension Color {
 // 全部使用 iOS 26 官方 Liquid Glass（glassEffect / GlassEffectContainer）。
 // 注意：玻璃按钮统一使用非交互玻璃（不加 .interactive()）——
 // 交互高光是 iOS 26 Liquid Glass 在页面切换/进出动画时产生高光闪烁（过曝）的主要原因，去掉后更稳。
+// 玻璃按钮必须加 .contentShape(Rectangle())——玻璃视图会收缩 Button 命中区域，
+// 不加会导致按钮点不中（BatteryInsight 已验证的写法）。
 // 页面内容（卡片/按钮/胶囊）一律用普通材质（MaterialCard / 纯色 / .quaternary），
 // 不做液态玻璃——玻璃在列表/输入页存在点击命中异常与切换闪烁问题。
 struct GlassTopBar<Leading: View, Trailing: View>: View {
@@ -87,6 +89,7 @@ struct GlassTopBar<Leading: View, Trailing: View>: View {
 }
 
 /// 圆形玻璃返回按钮（官方 Liquid Glass，非交互玻璃，避免切换动画高光闪烁）
+/// 注意：必须带 .contentShape(Rectangle())，否则玻璃视图收缩命中区域导致点不中
 struct GlassCircleButton: View {
     let icon: String
     var tint: Color = Color(red: 0.30, green: 0.55, blue: 0.42)
@@ -99,6 +102,7 @@ struct GlassCircleButton: View {
                 .foregroundColor(tint)
                 .frame(width: 40, height: 40)
                 .glassEffect(.regular, in: .circle)
+                .contentShape(Rectangle())
         }
     }
 }
@@ -149,6 +153,7 @@ struct GlassCapsuleButton: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
                 .glassEffect(.regular.tint(tint), in: .capsule)
+                .contentShape(Rectangle())
         }
     }
 }
