@@ -38,16 +38,24 @@ struct ItemEditView: View {
     @State private var inUse = 0
     @State private var avgConsumeDays = 7
     @State private var reminderDays = 3
-    @State private var reminderRule = 0          // 0=按剩余天数 1=按库存数量
+    @State private var reminderRule: ReminderRule = .days
     @State private var isOpened = true
     @AppStorage("useHistoryPrediction") private var useHistoryPrediction = true
     // 保质期
     @State private var enableExpiry = false
-    @State private var expiryMode = 0            // 0=按到期日期 1=按保质期月数
+    @State private var expiryMode: ExpiryMode = .date
     @State private var expiryDate = Date()
     @State private var shelfLifeMonths = 12
     // 删除确认
     @State private var showDeleteConfirm = false
+
+    /// 编辑模式下的目标物品（一次解包，替代多处 if case 匹配）
+    private var editItem: InventoryItem? {
+        if case .edit(let item) = mode { return item }
+        return nil
+    }
+
+    private var isEditing: Bool { editItem != nil }
 
     var body: some View {
         ZStack {
@@ -92,7 +100,7 @@ struct ItemEditView: View {
                             field("提醒规则") { reminderRulePicker }
 
                             // 仅「按剩余天数」需要消耗周期：显示历史消耗预测 + 平均消耗周期
-                            if reminderRule == 0 {
+                            if reminderRule == .days {
                                 toggleRow("使用历史消耗预测", subtitle: "未来根据使用情况自动优化周期", isOn: $useHistoryPrediction)
                                 if useHistoryPrediction {
                                     Text("预测周期暂无·有预测数据后自动使用")
@@ -104,7 +112,7 @@ struct ItemEditView: View {
                             }
 
                             field("补货提醒 *") {
-                                stockStepper(reminderRule == 0 ? "剩余 \(reminderDays) 天时提醒" : "库存 ≤ \(reminderDays) 件时提醒",
+                                stockStepper(reminderRule == .days ? "剩余 \(reminderDays) 天时提醒" : "库存 ≤ \(reminderDays) 件时提醒",
                                              onDown: decrementRemind, onUp: incrementRemind)
                             }
                         }
@@ -119,7 +127,7 @@ struct ItemEditView: View {
                             toggleRow("启用保质期", subtitle: "按每次拆封时间计算过期日期", isOn: $enableExpiry)
                             if enableExpiry {
                                 field("计算方式") { expiryModePicker }
-                                if expiryMode == 0 {
+                                if expiryMode == .date {
                                     field("到期日期 *") { expiryDateField }
                                 } else {
                                     field("保质期月数 *") { stockStepper("\(shelfLifeMonths) 个月", onDown: decrementMonths, onUp: incrementMonths) }
@@ -171,7 +179,7 @@ struct ItemEditView: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 18)
                                 .padding(.vertical, 9)
-                                .background(Capsule().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
+                                .background(Capsule().fill(Color.brandGreen))
                         }
                     }
                 )
@@ -190,18 +198,17 @@ struct ItemEditView: View {
         .onAppear(perform: load)
     }
 
-    private var isEditing: Bool {
-        if case .edit = mode { return true }
-        return false
-    }
-
     // MARK: - 操作
 
     /// 删除物品：SwiftData 级联删除（拆封/补货记录 deleteRule: .cascade 自动清理）
     private func deleteItem() {
-        if case .edit(let item) = mode {
+        if let item = editItem {
             modelContext.delete(item)
-            try? modelContext.save()
+            do {
+                try modelContext.save()
+            } catch {
+                showSaveError("删除失败，请重试")
+            }
         }
         dismiss()
     }
@@ -249,13 +256,13 @@ struct ItemEditView: View {
             Spacer()
             Toggle("", isOn: isOn)
                 .labelsHidden()
-                .tint(Color(red: 0.36, green: 0.62, blue: 0.48))
+                .tint(Color.brandGreen)
         }
         .padding(.vertical, 2)
     }
 
     private func load() {
-        if case .edit(let item) = mode {
+        if let item = editItem {
             name = item.name
             brand = item.brand
             category = item.category
@@ -264,10 +271,10 @@ struct ItemEditView: View {
             inUse = item.inUse
             avgConsumeDays = item.avgConsumeDays
             reminderDays = item.reminderDays
-            reminderRule = item.reminderRule
+            reminderRule = item.reminderRuleEnum
             isOpened = item.isOpened
             enableExpiry = item.expiryEnabled
-            expiryMode = item.expiryMode
+            expiryMode = item.expiryModeEnum
             expiryDate = item.expiryDate ?? Date()
             shelfLifeMonths = max(1, item.shelfLifeMonths)
         } else {
@@ -280,22 +287,8 @@ struct ItemEditView: View {
     private func save() {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        if case .edit(let item) = mode {
-            item.name = trimmed
-            item.brand = brand.trimmingCharacters(in: .whitespaces)
-            item.category = category
-            item.location = location.isEmpty ? "未指定" : location
-            item.totalStock = max(0, totalStock)
-            item.inUse = max(0, inUse)
-            item.avgConsumeDays = max(1, avgConsumeDays)
-            item.reminderDays = max(1, reminderDays)
-            item.reminderRule = reminderRule
-            item.isOpened = isOpened
-            if isOpened { item.lastUnpackDate = item.lastUnpackDate ?? Date() }
-            item.expiryEnabled = enableExpiry
-            item.expiryMode = expiryMode
-            item.expiryDate = enableExpiry && expiryMode == 0 ? expiryDate : nil
-            item.shelfLifeMonths = max(1, shelfLifeMonths)
+        if let item = editItem {
+            applyFields(to: item)
         } else {
             let item = InventoryItem(
                 name: trimmed,
@@ -306,17 +299,67 @@ struct ItemEditView: View {
                 inUse: max(0, inUse),
                 avgConsumeDays: max(1, avgConsumeDays),
                 reminderDays: max(1, reminderDays),
-                reminderRule: reminderRule,
+                reminderRule: reminderRule.rawValue,
                 isOpened: isOpened,
                 expiryEnabled: enableExpiry,
-                expiryMode: expiryMode,
-                expiryDate: enableExpiry && expiryMode == 0 ? expiryDate : nil,
+                expiryMode: expiryMode.rawValue,
+                expiryDate: enableExpiry && expiryMode == .date ? expiryDate : nil,
                 shelfLifeMonths: max(1, shelfLifeMonths)
             )
             modelContext.insert(item)
+            applyFields(to: item)
         }
-        try? modelContext.save()
-        dismiss()
+        do {
+            try modelContext.save()
+            dismiss()
+        } catch {
+            showSaveError("保存失败，请重试")
+        }
+    }
+
+    /// 将当前表单值统一写入目标物品（编辑与新增共用，避免字段重复）
+    private func applyFields(to item: InventoryItem) {
+        item.name = name.trimmingCharacters(in: .whitespaces)
+        item.brand = brand.trimmingCharacters(in: .whitespaces)
+        item.category = category
+        item.location = location.isEmpty ? "未指定" : location
+        item.totalStock = max(0, totalStock)
+        item.inUse = max(0, inUse)
+        item.avgConsumeDays = max(1, avgConsumeDays)
+        item.reminderDays = max(1, reminderDays)
+        item.reminderRule = reminderRule.rawValue
+        item.isOpened = isOpened
+        if isOpened { item.lastUnpackDate = item.lastUnpackDate ?? Date() }
+        item.expiryEnabled = enableExpiry
+        item.expiryMode = expiryMode.rawValue
+        item.expiryDate = enableExpiry && expiryMode == .date ? expiryDate : nil
+        item.shelfLifeMonths = max(1, shelfLifeMonths)
+    }
+
+    private func showSaveError(_ message: String) {
+        // 保存失败提示（Toast 简化：后续可换成 alert 状态）
+        let scene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first(where: { $0.activationState == .foregroundActive })
+        guard let window = scene?.windows.first(where: { $0.isKeyWindow }) else { return }
+        let label = UILabel()
+        label.text = message
+        label.font = .systemFont(ofSize: 14, weight: .medium)
+        label.textColor = .white
+        label.backgroundColor = UIColor.black.withAlphaComponent(0.75)
+        label.layer.cornerRadius = 10
+        label.clipsToBounds = true
+        label.textAlignment = .center
+        label.frame = CGRect(x: 0, y: 0, width: 200, height: 44)
+        label.center = CGPoint(x: window.bounds.midX, y: window.bounds.midY)
+        label.alpha = 0
+        window.addSubview(label)
+        UIView.animate(withDuration: 0.25) { label.alpha = 1 }
+        UIView.animate(withDuration: 0.3, delay: 2.0, options: []) {
+            label.alpha = 0
+        } completion: { _ in
+            label.removeFromSuperview()
+        }
     }
 
     // MARK: - 输入控件
@@ -342,10 +385,10 @@ struct ItemEditView: View {
                 Button { category = c } label: {
                     Text(c.rawValue)
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(category == c ? .white : Color(red: 0.28, green: 0.52, blue: 0.40))
+                        .foregroundColor(category == c ? .white : Color.brandDeepGreen)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .background(Capsule().fill(category == c ? Color(red: 0.36, green: 0.62, blue: 0.48) : chipBg))
+                        .background(Capsule().fill(category == c ? Color.brandGreen : chipBg))
                 }
             }
         }
@@ -355,8 +398,8 @@ struct ItemEditView: View {
     /// 提醒规则：纯色胶囊分段切换
     private var reminderRulePicker: some View {
         HStack(spacing: 4) {
-            segmentCapsule("按剩余天数", selected: reminderRule == 0) { reminderRule = 0 }
-            segmentCapsule("按库存数量", selected: reminderRule == 1) { reminderRule = 1 }
+            segmentCapsule("按剩余天数", selected: reminderRule == .days) { reminderRule = .days }
+            segmentCapsule("按库存数量", selected: reminderRule == .quantity) { reminderRule = .quantity }
         }
         .padding(4)
         .background(Capsule().fill(chipBg))
@@ -365,8 +408,8 @@ struct ItemEditView: View {
     /// 保质期计算方式：按到期日期 / 按保质期月数
     private var expiryModePicker: some View {
         HStack(spacing: 4) {
-            segmentCapsule("按到期日期", selected: expiryMode == 0) { expiryMode = 0 }
-            segmentCapsule("按保质期月数", selected: expiryMode == 1) { expiryMode = 1 }
+            segmentCapsule("按到期日期", selected: expiryMode == .date) { expiryMode = .date }
+            segmentCapsule("按保质期月数", selected: expiryMode == .months) { expiryMode = .months }
         }
         .padding(4)
         .background(Capsule().fill(chipBg))
@@ -379,7 +422,7 @@ struct ItemEditView: View {
                 .foregroundColor(selected ? .white : .secondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-                .background(Capsule().fill(selected ? Color(red: 0.36, green: 0.62, blue: 0.48) : Color.clear))
+                .background(Capsule().fill(selected ? Color.brandGreen : Color.clear))
         }
     }
 
@@ -408,9 +451,9 @@ struct ItemEditView: View {
                 Button { location = loc } label: {
                     Text(loc)
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(location == loc ? .white : Color(red: 0.28, green: 0.52, blue: 0.40))
+                        .foregroundColor(location == loc ? .white : Color.brandDeepGreen)
                         .padding(.horizontal, 12).padding(.vertical, 7)
-                        .background(Capsule().fill(location == loc ? Color(red: 0.36, green: 0.62, blue: 0.48) : chipBg))
+                        .background(Capsule().fill(location == loc ? Color.brandGreen : chipBg))
                 }
             }
         }
@@ -422,7 +465,7 @@ struct ItemEditView: View {
         DatePicker("", selection: $expiryDate, displayedComponents: .date)
             .labelsHidden()
             .datePickerStyle(.compact)
-            .tint(Color(red: 0.36, green: 0.62, blue: 0.48))
+            .tint(Color.brandGreen)
             .padding(12)
             .background(inputBg)
     }
@@ -466,9 +509,9 @@ struct ItemEditView: View {
     private func stepIcon(_ icon: String) -> some View {
         Image(systemName: icon)
             .font(.system(size: 15, weight: .bold))
-            .foregroundColor(Color(red: 0.30, green: 0.55, blue: 0.42))
+            .foregroundColor(Color.brandTint)
             .frame(width: 34, height: 34)
-            .background(Circle().fill(Color(red: 0.36, green: 0.62, blue: 0.48).opacity(0.15)))
+            .background(Circle().fill(Color.brandGreen.opacity(0.15)))
     }
 
     private func incrementAvg() { avgConsumeDays += 1 }
