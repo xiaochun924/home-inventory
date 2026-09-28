@@ -33,6 +33,11 @@ struct InventoryItemDTO: Codable {
     var lastUnpackDate: Date?
     var unpackRecords: [UnpackRecordDTO]
     var restockRecords: [RestockRecordDTO]
+    // 保质期（Optional：旧备份无此字段时自动兼容）
+    var expiryEnabled: Bool?
+    var expiryMode: Int?
+    var expiryDate: Date?
+    var shelfLifeMonths: Int?
 }
 
 /// 区域快照：名称 + 排序（底部导航顺序）
@@ -62,7 +67,7 @@ struct BackupResult {
 // MARK: - 备份 / 恢复
 
 enum BackupManager {
-    /// 导出：将全部区域（含顺序）与物品（含拆封/补货记录）编码为 JSON
+    /// 导出：将全部区域（含顺序）与物品（含拆封/补货记录、保质期）编码为 JSON
     static func encode(items: [InventoryItem], areas: [InventoryArea]) throws -> Data {
         let file = BackupFileDTO(
             areas: areas.sorted { $0.sortOrder < $1.sortOrder }.map { AreaDTO(name: $0.name, sortOrder: $0.sortOrder) },
@@ -110,7 +115,11 @@ enum BackupManager {
             isOpened: item.isOpened,
             lastUnpackDate: item.lastUnpackDate,
             unpackRecords: item.unpackRecords.map { UnpackRecordDTO(id: $0.id, date: $0.date, quantity: $0.quantity) },
-            restockRecords: item.restockRecords.map { RestockRecordDTO(id: $0.id, date: $0.date, quantity: $0.quantity) }
+            restockRecords: item.restockRecords.map { RestockRecordDTO(id: $0.id, date: $0.date, quantity: $0.quantity) },
+            expiryEnabled: item.expiryEnabled,
+            expiryMode: item.expiryMode,
+            expiryDate: item.expiryDate,
+            shelfLifeMonths: item.shelfLifeMonths
         )
     }
 
@@ -126,7 +135,11 @@ enum BackupManager {
             avgConsumeDays: dto.avgConsumeDays,
             reminderDays: dto.reminderDays,
             reminderRule: dto.reminderRule,
-            isOpened: dto.isOpened
+            isOpened: dto.isOpened,
+            expiryEnabled: dto.expiryEnabled ?? false,
+            expiryMode: dto.expiryMode ?? 0,
+            expiryDate: dto.expiryDate,
+            shelfLifeMonths: dto.shelfLifeMonths ?? 12
         )
         item.createdAt = dto.createdAt
         item.lastUnpackDate = dto.lastUnpackDate
