@@ -1,9 +1,6 @@
 import SwiftUI
 import SwiftData
 
-/// 新增 / 编辑物品（二级页面）
-/// 布局参考「有余」：顶部返回 + 保存，正文按板块分块，每板块收进自适应卡片（与主页卡片同风格）
-/// 存储位置候选：优先取已设置区域，其次历史位置；从区域页「去添加」进入时自动预填该区域
 struct ItemEditView: View {
     enum Mode {
         case add
