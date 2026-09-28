@@ -75,7 +75,7 @@ struct SettingsView: View {
                                     HStack(spacing: 10) {
                                         Image(systemName: "location.fill")
                                             .font(.system(size: 13))
-                                            .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                            .foregroundColor(Color.brandGreen)
                                         Text(area.name)
                                             .font(.system(size: 15, weight: .medium))
                                         Spacer()
@@ -88,7 +88,7 @@ struct SettingsView: View {
                                         } label: {
                                             Image(systemName: "chevron.up")
                                                 .font(.system(size: 12, weight: .semibold))
-                                                .foregroundColor(areas.first?.id == area.id ? Color.gray.opacity(0.3) : Color(red: 0.36, green: 0.62, blue: 0.48))
+                                                .foregroundColor(areas.first?.id == area.id ? Color.gray.opacity(0.3) : Color.brandGreen)
                                         }
                                         .disabled(areas.first?.id == area.id)
                                         // 下移
@@ -97,7 +97,7 @@ struct SettingsView: View {
                                         } label: {
                                             Image(systemName: "chevron.down")
                                                 .font(.system(size: 12, weight: .semibold))
-                                                .foregroundColor(areas.last?.id == area.id ? Color.gray.opacity(0.3) : Color(red: 0.36, green: 0.62, blue: 0.48))
+                                                .foregroundColor(areas.last?.id == area.id ? Color.gray.opacity(0.3) : Color.brandGreen)
                                         }
                                         .disabled(areas.last?.id == area.id)
                                         Button {
@@ -117,10 +117,10 @@ struct SettingsView: View {
                                 HStack {
                                     Text("添加区域")
                                         .font(.system(size: 15, weight: .medium))
-                                        .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                        .foregroundColor(Color.brandGreen)
                                     Spacer()
                                     Image(systemName: "plus")
-                                        .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                        .foregroundColor(Color.brandGreen)
                                 }
                             }
                         }
@@ -142,10 +142,10 @@ struct SettingsView: View {
                                 HStack {
                                     Text("备份数据")
                                         .font(.system(size: 15, weight: .medium))
-                                        .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                        .foregroundColor(Color.brandGreen)
                                     Spacer()
                                     Image(systemName: "square.and.arrow.up")
-                                        .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                        .foregroundColor(Color.brandGreen)
                                 }
                             }
                             Divider().opacity(0.4)
@@ -159,10 +159,10 @@ struct SettingsView: View {
                                 HStack {
                                     Text("恢复数据")
                                         .font(.system(size: 15, weight: .medium))
-                                        .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                        .foregroundColor(Color.brandGreen)
                                     Spacer()
                                     Image(systemName: "square.and.arrow.down")
-                                        .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                        .foregroundColor(Color.brandGreen)
                                 }
                             }
                         }
@@ -204,7 +204,7 @@ struct SettingsView: View {
                         Text("所有物品、区域、拆封与补货记录将被永久删除，且不可恢复。")
                     }
 
-                    Text("家庭库存管理 v1.0\n黑子 ")
+                    Text("家庭库存管理 v\(appVersion)\n黑子")
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -241,6 +241,11 @@ struct SettingsView: View {
         }
     }
 
+    /// 应用版本号（从 Bundle 读取，避免硬编码）
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+
     private func statRow(_ title: String, _ value: String) -> some View {
         HStack {
             Text(title)
@@ -252,6 +257,19 @@ struct SettingsView: View {
         }
     }
 
+    /// 保存上下文并反馈结果；失败时弹提示
+    @discardableResult
+    private func saveContext(_ failMessage: String) -> Bool {
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            messageText = failMessage
+            showMessage = true
+            return false
+        }
+    }
+
     // MARK: - 区域管理
 
     private func addArea() {
@@ -259,14 +277,14 @@ struct SettingsView: View {
         if !trimmed.isEmpty && !areas.contains(where: { $0.name == trimmed }) {
             let nextOrder = (areas.map(\.sortOrder).max() ?? -1) + 1
             modelContext.insert(InventoryArea(name: trimmed, sortOrder: nextOrder))
-            try? modelContext.save()
+            saveContext("添加区域失败，请重试")
         }
         newAreaName = ""
     }
 
     private func deleteArea(_ area: InventoryArea) {
         modelContext.delete(area)
-        try? modelContext.save()
+        saveContext("删除区域失败，请重试")
     }
 
     /// 上移/下移：交换相邻两个区域的 sortOrder，底部导航顺序随之变化
@@ -278,7 +296,7 @@ struct SettingsView: View {
         let tmp = area.sortOrder
         area.sortOrder = other.sortOrder
         other.sortOrder = tmp
-        try? modelContext.save()
+        saveContext("调整顺序失败，请重试")
     }
 
     // MARK: - 备份 / 恢复
@@ -313,17 +331,17 @@ struct SettingsView: View {
         }
     }
 
-    /// 确认后应用恢复：先清空当前数据再写入备份，避免唯一主键冲突
+    /// 确认后应用恢复：先清空当前数据再写入备份（单次 save，避免中间失败留下半删状态）
     private func applyRestore() {
         for item in items { modelContext.delete(item) }
         for area in areas { modelContext.delete(area) }
-        try? modelContext.save()
         for areaDTO in pendingAreas {
             modelContext.insert(InventoryArea(name: areaDTO.name, sortOrder: areaDTO.sortOrder))
         }
         for item in pendingRestore { modelContext.insert(item) }
-        try? modelContext.save()
-        messageText = "恢复成功，共 \(pendingRestore.count) 件物品、\(pendingAreas.count) 个区域"
+        if saveContext("恢复失败：数据保存出错，请重试") {
+            messageText = "恢复成功，共 \(pendingRestore.count) 件物品、\(pendingAreas.count) 个区域"
+        }
         pendingRestore = []
         pendingAreas = []
         showMessage = true
@@ -336,6 +354,6 @@ struct SettingsView: View {
         for area in areas {
             modelContext.delete(area)
         }
-        try? modelContext.save()
+        saveContext("清空失败，请重试")
     }
 }
