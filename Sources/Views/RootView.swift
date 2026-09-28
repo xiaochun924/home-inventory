@@ -61,13 +61,12 @@ struct RootView: View {
     }
 }
 
-/// 全应用统一背景（BatteryInsight 风格）：
-/// 系统分组背景色 systemGroupedBackground——浅色=中性淡灰 #F2F2F7，深色=纯黑；
-/// 与系统 List 分组背景一致，卡片（纯白/深灰）在其上层次分明。
+/// 全应用统一背景：系统标准背景色 systemBackground
+/// 浅色=纯白（与系统默认页面/区域页底色完全一致），深色=纯黑，跟随系统深浅色外观。
 /// 用系统语义色而非自定义动态闭包：线程安全（iOS 26 异步渲染线程解析动态色会崩溃）。
 struct AppBackground: View {
     var body: some View {
-        Color(uiColor: .systemGroupedBackground)
+        Color(uiColor: .systemBackground)
             .ignoresSafeArea()
     }
 }
