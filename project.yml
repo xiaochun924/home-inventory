@@ -26,7 +26,20 @@ targets:
     type: application
     platform: iOS
     sources:
+      # 注意排除 Widget 目录：InventoryWidget.swift 的 @main WidgetBundle 只能属于 Widget 扩展，
+      # 若编入 App target 会产生重复 @main 编译错误；Shared 目录两个 target 都要编
       - path: Sources
+        excludes:
+          - "Widget"
+    # 嵌入小组件扩展：构建 App 时自动编译 Widget，并打包进 IPA 的 PlugIns/*.appex
+    dependencies:
+      - target: InventoryWidget
+        embed: true
+    entitlements:
+      path: Sources/HomeInventory.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.xiaochun924.HomeInventory
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiaochun924.HomeInventory
@@ -34,5 +47,25 @@ targets:
         INFOPLIST_FILE: Sources/Info.plist
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_PREVIEWS: YES
+
+  InventoryWidget:
+    type: bundle.widget-extension
+    platform: iOS
+    sources:
+      - path: Sources/Widget
+      - path: Sources/Shared
+    entitlements:
+      path: Sources/Widget/InventoryWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.xiaochun924.HomeInventory
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiaochun924.HomeInventory.Widget
+        PRODUCT_NAME: HomeInventoryWidget
+        INFOPLIST_FILE: Sources/Widget/Info.plist
+        CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ENABLE_PREVIEWS: YES
