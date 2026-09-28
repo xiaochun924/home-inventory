@@ -9,8 +9,10 @@ import SwiftData
 /// 避免玻璃在二级页面/列表中的点击命中异常与切换闪烁。
 /// 拆封语义：本次拆封多少，使用中就是多少（替换而非累加）
 /// 稳定性：拆封/补货确认先 dismiss 再改模型，数量上限 999，避免返回主页闪烁/闪退
-/// 修改入口：NavigationLink 直连编辑页（不再用 navigationDestination(isPresented:)，
-/// 避免 zoom 转场推入的页面内再嵌套注册 destination 导致的闪退）
+/// 修改入口：顶栏按钮用 Button 触发 + 页面级 navigationDestination(isPresented:) 推编辑页
+/// （参考 BatteryInsight 已验证模式：zoom 转场页内再 push 二级页用 Button+destination，
+/// 不要用顶栏玻璃容器里的 NavigationLink——iOS 26 下 zoom 动画中触发会崩溃）
+/// 右滑返回：系统导航栏隐藏后手势失效，用 simultaneousGesture DragGesture 恢复（BatteryInsight 同款）
 struct ItemDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -21,6 +23,7 @@ struct ItemDetailView: View {
 
     @State private var showUnpack = false
     @State private var showRestock = false
+    @State private var showEdit = false
     @State private var showCustomLocation = false
     @State private var customLocation = ""
 
@@ -48,17 +51,15 @@ struct ItemDetailView: View {
                     HStack {
                         GlassCircleButton(icon: "chevron.left") { dismiss() }
                         Spacer()
-                        // 修改：NavigationLink 直连编辑页（纯色圆形按钮，稳定可点）
-                        NavigationLink {
-                            ItemEditView(mode: .edit(item))
-                        } label: {
+                        // 修改：Button 触发编辑页（纯色圆形按钮，稳定可点；
+                        // 页面级 navigationDestination 注册在下方，不用顶栏 NavigationLink）
+                        Button { showEdit = true } label: {
                             Image(systemName: "pencil")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.white)
                                 .frame(width: 40, height: 40)
                                 .background(Circle().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
                         }
-                        .buttonStyle(.plain)
                     }
                 }
                 .frame(height: 48)
@@ -78,7 +79,21 @@ struct ItemDetailView: View {
                 }
                 Button("取消", role: .cancel) { customLocation = "" }
             }
+            // 编辑页：页面级 destination（BatteryInsight 已验证模式）
+            .navigationDestination(isPresented: $showEdit) {
+                ItemEditView(mode: .edit(item))
+            }
         }
+        // 系统导航栏已隐藏，手动恢复右滑返回手势（BatteryInsight 同款写法）
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 25)
+                .onEnded { value in
+                    if value.translation.width > 60,
+                       abs(value.translation.width) > abs(value.translation.height) {
+                        dismiss()
+                    }
+                }
+        )
     }
 
     // MARK: - 头部：商品名 + 品类（左），库存大字（右）
