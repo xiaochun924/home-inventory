@@ -1,9 +1,9 @@
 import SwiftUI
 
-// ===== 深色模式自适应 =====
+// ===== 深浅模式自适应与品牌色 =====
 // 统一策略（BatteryInsight 风格，系统标准色）：
-//  - 页面底色 = systemGroupedBackground（浅色淡灰 #F2F2F7 / 深色纯黑）
-//  - 卡片底色 = ultraThinMaterial（微透明白底，叠加淡灰背景呈近白，深浅自适应）——BatteryInsight 记录卡同款
+//  - 页面底色 = systemBackground（浅色纯白 / 深色纯黑）——见 RootView.AppBackground
+//  - 卡片底色 = ultraThinMaterial（微透明白底，叠加白底呈近白，深浅自适应）——BatteryInsight 记录卡同款
 //  - 输入容器/未选中胶囊 = systemGray5（浅色 #E5E5EA / 深色 #2C2C2E），在白卡上可见、有层次
 // 全部使用系统语义色：深浅模式系统自适应、跨线程安全（iOS 26 AsyncRenderer 在异步线程解析
 // UIColor{...} 动态闭包会触发 Swift 6 断言崩溃，见编辑页崩溃日志）。
@@ -23,20 +23,25 @@ extension Color {
     static let adaptiveSeparator = Color(uiColor: .separator)
     /// 自适应进度条轨道：系统四档灰
     static let adaptiveTrack = Color(uiColor: .systemGray5)
-    /// 自适应卡片底（浅色=近白浅绿/浅橙，深色=深灰卡片）——保留原实现
-    static func adaptiveCardBackground(emphasized: Bool) -> Color {
-        Color(uiColor: UIColor { t in
-            if t.userInterfaceStyle == .dark {
-                return emphasized
-                    ? UIColor(red: 0.32, green: 0.23, blue: 0.17, alpha: 1)   // 深色需关注：暗橙
-                    : UIColor(white: 0.16, alpha: 1)                          // 深色普通：深灰
-            } else {
-                return emphasized
-                    ? UIColor(red: 1.00, green: 0.96, blue: 0.93, alpha: 1)   // 浅色需关注：浅橙
-                    : UIColor(red: 0.97, green: 0.985, blue: 0.97, alpha: 1) // 浅色普通：近白浅绿
-            }
-        })
-    }
+
+    // ===== 品牌绿色系（全应用唯一色源）=====
+    // 静态 RGB 字面量（无动态闭包，线程安全）。改品牌色/做深色适配只动这里。
+    /// 主品牌绿：主按钮 / 选中胶囊 / 区域图标 / 主页统计强调
+    static let brandGreen = Color(red: 0.36, green: 0.62, blue: 0.48)
+    /// 深绿：高亮数字 / 筛选文字 / 未选中胶囊文字
+    static let brandDeepGreen = Color(red: 0.28, green: 0.52, blue: 0.40)
+    /// 全局强调色（tint / 图标 / 玻璃按钮）：略浅于深绿
+    static let brandTint = Color(red: 0.30, green: 0.55, blue: 0.42)
+    /// 拆封按钮深绿文字（浅色纯色胶囊）
+    static let brandDarkText = Color(red: 0.13, green: 0.35, blue: 0.29)
+    /// 拆封按钮浅底
+    static let brandUnpackFill = Color(red: 0.93, green: 0.95, blue: 0.94)
+    /// 补货按钮深绿
+    static let brandRestock = Color(red: 0.20, green: 0.42, blue: 0.37)
+    /// 补货确认按钮绿
+    static let brandRestockLight = Color(red: 0.45, green: 0.58, blue: 0.33)
+    /// 补货数量控件绿
+    static let brandRestockField = Color(red: 0.55, green: 0.65, blue: 0.48)
 }
 
 // ================= 液态玻璃悬浮顶栏（全局统一规范） =================
@@ -91,7 +96,7 @@ struct GlassTopBar<Leading: View, Trailing: View>: View {
 /// 注意：必须带 .contentShape(Rectangle())，否则玻璃视图收缩命中区域导致点不中
 struct GlassCircleButton: View {
     let icon: String
-    var tint: Color = Color(red: 0.30, green: 0.55, blue: 0.42)
+    var tint: Color = Color.brandTint
     let action: () -> Void
 
     var body: some View {
@@ -141,7 +146,7 @@ struct MaterialCard<Content: View>: View {
 /// 胶囊主按钮（官方 Liquid Glass，tint 上色，非交互玻璃避免闪烁）
 struct GlassCapsuleButton: View {
     let title: String
-    var tint: Color = Color(red: 0.36, green: 0.62, blue: 0.48)
+    var tint: Color = Color.brandGreen
     let action: () -> Void
 
     var body: some View {
@@ -160,7 +165,7 @@ struct GlassCapsuleButton: View {
 /// 纯色胶囊按钮（非液态玻璃）：纯色底 + 白字，用于详情页等二级页面
 struct SolidCapsuleButton: View {
     let title: String
-    var tint: Color = Color(red: 0.36, green: 0.62, blue: 0.48)
+    var tint: Color = Color.brandGreen
     let action: () -> Void
 
     var body: some View {
@@ -207,7 +212,7 @@ struct SolidStatusCapsule: View {
 
 /// 纯色 + 号胶囊按钮（主页/区域页顶栏右上角，参考「有余」布局：+ 独立于 tab 栏）
 struct SolidAddCapsule: View {
-    var tint: Color = Color(red: 0.36, green: 0.62, blue: 0.48)
+    var tint: Color = Color.brandGreen
     let action: () -> Void
 
     var body: some View {
