@@ -176,6 +176,13 @@ struct ItemEditView: View {
             }))
     }
 
+    /// 胶囊未选中底色（浅色=浅灰，深色=深灰）
+    private var chipBg: Color {
+        Color(uiColor: UIColor { t in
+            t.userInterfaceStyle == .dark ? UIColor(white: 0.20, alpha: 1) : UIColor(red: 0.95, green: 0.955, blue: 0.95, alpha: 1)
+        })
+    }
+
     private func field(_ title: String, @ViewBuilder content: @escaping () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
@@ -285,9 +292,9 @@ struct ItemEditView: View {
             .background(inputBg)
     }
 
-    /// 分类标签选择：未选中浅灰底，选中纯绿底白字
+    /// 分类标签选择：流式换行布局（避免 LazyVGrid 高频切换崩溃），未选中浅灰底，选中纯绿底白字
     private var categoryChips: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 10)], spacing: 10) {
+        FlowLayout(spacing: 10) {
             ForEach(Category.allCases) { c in
                 Button { category = c } label: {
                     Text(c.rawValue)
@@ -295,12 +302,11 @@ struct ItemEditView: View {
                         .foregroundColor(category == c ? .white : Color(red: 0.28, green: 0.52, blue: 0.40))
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .background(Capsule().fill(category == c ? Color(red: 0.36, green: 0.62, blue: 0.48) : Color(uiColor: UIColor { t in
-                            t.userInterfaceStyle == .dark ? UIColor(white: 0.20, alpha: 1) : UIColor(red: 0.95, green: 0.955, blue: 0.95, alpha: 1)
-                        })))
+                        .background(Capsule().fill(category == c ? Color(red: 0.36, green: 0.62, blue: 0.48) : chipBg))
                 }
             }
         }
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: category)
     }
 
     /// 提醒规则：纯色胶囊分段切换
@@ -310,9 +316,7 @@ struct ItemEditView: View {
             segmentCapsule("按库存数量", selected: reminderRule == 1) { reminderRule = 1 }
         }
         .padding(4)
-        .background(Capsule().fill(Color(uiColor: UIColor { t in
-            t.userInterfaceStyle == .dark ? UIColor(white: 0.20, alpha: 1) : UIColor(red: 0.95, green: 0.955, blue: 0.95, alpha: 1)
-        })))
+        .background(Capsule().fill(chipBg))
     }
 
     /// 保质期计算方式：按到期日期 / 按保质期月数
@@ -322,9 +326,7 @@ struct ItemEditView: View {
             segmentCapsule("按保质期月数", selected: expiryMode == 1) { expiryMode = 1 }
         }
         .padding(4)
-        .background(Capsule().fill(Color(uiColor: UIColor { t in
-            t.userInterfaceStyle == .dark ? UIColor(white: 0.20, alpha: 1) : UIColor(red: 0.95, green: 0.955, blue: 0.95, alpha: 1)
-        })))
+        .background(Capsule().fill(chipBg))
     }
 
     private func segmentCapsule(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
@@ -356,21 +358,20 @@ struct ItemEditView: View {
         return set.sorted()
     }
 
-    /// 位置候选胶囊：点击即填入
+    /// 位置候选胶囊：流式换行，点击即填入
     private var locationChips: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 8)], spacing: 8) {
+        FlowLayout(spacing: 8) {
             ForEach(locationCandidates, id: \.self) { loc in
                 Button { location = loc } label: {
                     Text(loc)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(location == loc ? .white : Color(red: 0.28, green: 0.52, blue: 0.40))
                         .padding(.horizontal, 12).padding(.vertical, 7)
-                        .background(Capsule().fill(location == loc ? Color(red: 0.36, green: 0.62, blue: 0.48) : Color(uiColor: UIColor { t in
-                            t.userInterfaceStyle == .dark ? UIColor(white: 0.20, alpha: 1) : UIColor(red: 0.95, green: 0.955, blue: 0.95, alpha: 1)
-                        })))
+                        .background(Capsule().fill(location == loc ? Color(red: 0.36, green: 0.62, blue: 0.48) : chipBg))
                 }
             }
         }
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: location)
     }
 
     /// 到期日期选择（compact 日期选择器）
@@ -433,4 +434,44 @@ struct ItemEditView: View {
     private func decrementRemind() { if reminderDays > 1 { reminderDays -= 1 } }
     private func incrementMonths() { shelfLifeMonths += 1 }
     private func decrementMonths() { if shelfLifeMonths > 1 { shelfLifeMonths -= 1 } }
+}
+
+/// 轻量流式换行布局：子视图按宽度自动换行（替代 LazyVGrid，高频状态切换更稳定）
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 10
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        for sub in subviews {
+            let size = sub.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth, x > 0 {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return CGSize(width: maxWidth, height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+        for sub in subviews {
+            let size = sub.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX, x > bounds.minX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            sub.place(at: CGPoint(x: x, y: y), proposal: .unspecified)
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
 }
