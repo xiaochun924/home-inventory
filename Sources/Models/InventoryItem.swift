@@ -13,6 +13,18 @@ enum Category: String, CaseIterable, Codable, Identifiable {
     var id: String { rawValue }
 }
 
+/// 提醒依据（存储为 reminderRule 的 Int 原始值，SwiftData schema 不变，仅代码层类型安全）
+enum ReminderRule: Int {
+    case days = 0       // 按剩余天数
+    case quantity = 1   // 按库存数量
+}
+
+/// 保质期计算方式（存储为 expiryMode 的 Int 原始值）
+enum ExpiryMode: Int {
+    case date = 0       // 按到期日期
+    case months = 1     // 按保质期月数
+}
+
 /// 物品库存状态
 enum StockStatus {
     case attention   // 需关注：即将耗尽或已耗尽
@@ -40,16 +52,16 @@ final class InventoryItem {
     var inUse: Int = 0               // 使用中数量（当前正在用的件数）
     var avgConsumeDays: Int = 5      // 平均消耗天数（每 1 件用完需要多少天）
     var reminderDays: Int = 3        // 提醒阈值：按剩余天数时为天数，按库存数量时为件数
-    var reminderRule: Int = 0        // 提醒依据：0=按剩余天数 1=按库存数量
+    var reminderRule: Int = 0        // 提醒依据（ReminderRule rawValue）
     var createdAt: Date = Date()
     var isOpened: Bool = true        // 是否已拆封
     var lastUnpackDate: Date?        // 最近拆封日期
 
     // 保质期：启用后可按「到期日期」或「保质期月数」两种方式记录
     var expiryEnabled: Bool = false  // 是否启用保质期
-    var expiryMode: Int = 0          // 0=按到期日期 1=按保质期月数
-    var expiryDate: Date?            // 到期日期（expiryMode == 0 时使用）
-    var shelfLifeMonths: Int = 12    // 保质期月数（expiryMode == 1 时使用）
+    var expiryMode: Int = 0          // 保质期计算方式（ExpiryMode rawValue）
+    var expiryDate: Date?            // 到期日期（expiryMode == .date 时使用）
+    var shelfLifeMonths: Int = 12    // 保质期月数（expiryMode == .months 时使用）
 
     // 拆封记录（级联删除）
     @Relationship(deleteRule: .cascade, inverse: \UnpackRecord.item)
@@ -103,8 +115,15 @@ final class InventoryItem {
         set { categoryRaw = newValue.rawValue }
     }
 
-    /// 可用库存（未拆封件数）
-    var availableStock: Int { totalStock }
+    /// 提醒依据（类型安全的枚举视图）
+    var reminderRuleEnum: ReminderRule {
+        ReminderRule(rawValue: reminderRule) ?? .days
+    }
+
+    /// 保质期计算方式（类型安全的枚举视图）
+    var expiryModeEnum: ExpiryMode {
+        ExpiryMode(rawValue: expiryMode) ?? .date
+    }
 
     /// 预计剩余可用天数 = 库存数量 × 平均消耗天数
     var remainingDays: Int {
@@ -118,10 +137,12 @@ final class InventoryItem {
 
     /// 是否处于需关注状态（按设置的提醒依据判断）
     var needsAttention: Bool {
-        if reminderRule == 1 {
+        switch reminderRuleEnum {
+        case .quantity:
             return totalStock <= reminderDays
+        case .days:
+            return totalStock <= 0 || remainingDays <= reminderDays
         }
-        return totalStock <= 0 || remainingDays <= reminderDays
     }
 
     /// 拆封进度百分比（0-100）：已拆封且最近有拆封记录
