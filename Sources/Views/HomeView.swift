@@ -372,8 +372,10 @@ struct FilterChip: View {
     }
 }
 
-/// 首页/区域页统一卡片：官方液态玻璃卡片（与设置页/添加页 GlassCard 同风格）
-/// 普通卡片：透明玻璃（.clear）；需关注卡片：带橙色 tint 的液态玻璃高亮
+/// 首页/区域页统一卡片（普通磨砂材质，参考 BatteryInsight 写法）：
+/// ultraThinMaterial 微透明白底 + 系统分隔线细描边；深浅模式自适应、通透不显黑，
+/// 无液态玻璃高光——避免切换闪烁与点击命中异常。
+/// 需关注卡片：橙色描边高亮。
 struct HomeCard<Content: View>: View {
     var emphasized: Bool = false
     var cornerRadius: CGFloat = 20
@@ -382,12 +384,17 @@ struct HomeCard<Content: View>: View {
     var body: some View {
         content()
             .padding(16)
-            .glassEffect(
-                emphasized
-                    ? .regular.tint(Color(red: 1.0, green: 0.72, blue: 0.42).opacity(0.35)).interactive()
-                    : .clear,
-                in: .rect(cornerRadius: cornerRadius)
-            )
+            .background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(
+                        emphasized ? Color.orange.opacity(0.45) : Color.adaptiveSeparator.opacity(0.5),
+                        lineWidth: 1
+                    )
+            }
     }
 }
 
