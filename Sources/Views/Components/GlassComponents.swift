@@ -1,30 +1,26 @@
 import SwiftUI
 
 // ===== 深色模式自适应 =====
+// 统一策略（BatteryInsight 风格）：输入容器/描边/轨道一律用系统语义色——
+// 深浅模式系统自适应、跨线程安全（iOS 26 AsyncRenderer 在异步线程解析
+// UIColor{...} 动态闭包会触发 Swift 6 断言崩溃，见编辑页崩溃日志）。
+// 唯一保留双档动态色的是品牌绿 adaptiveTextGreen（static 无捕获闭包，线程安全）。
 extension Color {
-    /// 自适应卡片/字段底色（浅色模式=半透明白，深色模式=半透明深灰）
-    static let adaptiveCardFill = Color(uiColor: UIColor { t in
-        t.userInterfaceStyle == .dark ? UIColor(white: 0.15, alpha: 0.60) : UIColor(white: 1.0, alpha: 0.50)
-    })
-    /// 自适应卡片描边
-    static let adaptiveCardStroke = Color(uiColor: UIColor { t in
-        t.userInterfaceStyle == .dark ? UIColor(white: 1.0, alpha: 0.20) : UIColor(white: 1.0, alpha: 0.60)
-    })
-    /// 自适应标题绿（浅色=深墨绿，深色=亮绿，保证两种模式下可读）
+    /// 自适应卡片/字段底色：统一系统浅灰（深浅模式自适应、线程安全）
+    static let adaptiveCardFill = Color(uiColor: .systemGray6)
+    /// 自适应卡片描边：系统分隔线色
+    static let adaptiveCardStroke = Color(uiColor: .separator)
+    /// 自适应标题绿（浅色=深墨绿，深色=亮绿，品牌主色）
     static let adaptiveTextGreen = Color(uiColor: UIColor { t in
         t.userInterfaceStyle == .dark
             ? UIColor(red: 0.58, green: 0.80, blue: 0.68, alpha: 1)
             : UIColor(red: 0.22, green: 0.40, blue: 0.30, alpha: 1)
     })
-    /// 自适应分隔线/细描边（浅色=黑6%，深色=白12%）
-    static let adaptiveSeparator = Color(uiColor: UIColor { t in
-        t.userInterfaceStyle == .dark ? UIColor(white: 1.0, alpha: 0.12) : UIColor(white: 0.0, alpha: 0.06)
-    })
-    /// 自适应进度条轨道（浅色=黑7%，深色=白15%）
-    static let adaptiveTrack = Color(uiColor: UIColor { t in
-        t.userInterfaceStyle == .dark ? UIColor(white: 1.0, alpha: 0.15) : UIColor(white: 0.0, alpha: 0.07)
-    })
-    /// 自适应卡片底（浅色=近白浅绿/浅橙，深色=深灰卡片）
+    /// 自适应分隔线/细描边：系统分隔线色
+    static let adaptiveSeparator = Color(uiColor: .separator)
+    /// 自适应进度条轨道：系统四档灰
+    static let adaptiveTrack = Color(uiColor: .systemGray5)
+    /// 自适应卡片底（浅色=近白浅绿/浅橙，深色=深灰卡片）——保留原实现
     static func adaptiveCardBackground(emphasized: Bool) -> Color {
         Color(uiColor: UIColor { t in
             if t.userInterfaceStyle == .dark {
@@ -48,7 +44,7 @@ extension Color {
 // 交互高光是 iOS 26 Liquid Glass 在页面切换/进出动画时产生高光闪烁（过曝）的主要原因，去掉后更稳。
 // 玻璃按钮必须加 .contentShape(Rectangle())——玻璃视图会收缩 Button 命中区域，
 // 不加会导致按钮点不中（BatteryInsight 已验证的写法）。
-// 页面内容（卡片/按钮/胶囊）一律用普通材质（MaterialCard / 纯色 / .quaternary），
+// 页面内容（卡片/按钮/胶囊）一律用普通材质（MaterialCard / 纯色 / .quaternary / 系统语义色），
 // 不做液态玻璃——玻璃在列表/输入页存在点击命中异常与切换闪烁问题。
 struct GlassTopBar<Leading: View, Trailing: View>: View {
     let title: String
