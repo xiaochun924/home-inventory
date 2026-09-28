@@ -4,8 +4,8 @@ import SwiftData
 /// 分区库存管理页：显示某个区域的全部物品，独立管理（拆封/补货/详情）
 /// 入口在底部 tab 栏（设置页添加区域后自动出现）
 /// 顶栏：搜索按钮在最左侧、添加按钮在最右侧，均为官方液态玻璃圆形按钮
-/// （非交互玻璃避免切换闪烁；带 contentShape 保证点击命中）
-/// 布局复用主页卡片样式：概览条 + 物品卡列表 + zoom 详情转场
+/// 骨架对齐 BatteryInsight：系统 List + Section（分组背景 + 分组卡片 + 小节标题）
+/// 保留功能交互：搜索、统计概览卡、物品卡列表、zoom 详情转场
 struct AreaInventoryView: View {
     @Environment(\.modelContext) private var modelContext
     let area: String
@@ -32,30 +32,42 @@ struct AreaInventoryView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    // 搜索（展开时显示，带顶部滑入过渡，主页同款）
-                    if showSearch {
-                        searchField
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
+            List {
+                // 搜索（展开时显示）
+                if showSearch {
+                    searchField
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+                }
 
-                    // 该区域概览
-                    overviewCard
+                // 该区域概览
+                overviewCard
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
 
+                // 物品列表
+                Section {
                     if items.isEmpty {
                         emptyCard
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     } else {
-                        sectionHeader("物品", count: items.count)
                         itemRows
                     }
-
-                    footerHint
-                    Spacer().frame(height: 96)
+                } header: {
+                    sectionHeader
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
+
+                // 底部提示
+                footerHint
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 12, trailing: 20))
             }
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(12)
             .scrollIndicators(.hidden)
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -73,7 +85,6 @@ struct AreaInventoryView: View {
                     },
                     trailing: {
                         // 添加该区域物品：液态玻璃圆形按钮（最右侧），位置自动预填该区域
-                        // contentShape 保证玻璃按钮点击命中区域完整
                         Button {
                             pendingAddLocation = area
                             showAdd = true
@@ -160,34 +171,30 @@ struct AreaInventoryView: View {
 
     // MARK: - 列表
 
-    private func sectionHeader(_ title: String, count: Int) -> some View {
+    private var sectionHeader: some View {
         HStack {
-            Text(title)
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(Color.adaptiveTextGreen)
+            Text("物品")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.primary)
             Spacer()
-            Text("\(count) 件")
+            Text("\(items.count) 件")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
+                .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
         }
-        .padding(.top, 6)
     }
 
     private var itemRows: some View {
-        VStack(spacing: 12) {
-            ForEach(items) { item in
-                ItemRow(item: item)
-                    // zoom 转场源：点按进入详情时从这张卡片放大，返回时缩回
-                    .matchedTransitionSource(id: item.id, in: namespace) { source in
-                        source.clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture { selectedItem = item }
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-            }
+        ForEach(items) { item in
+            ItemRow(item: item)
+                // zoom 转场源：点按进入详情时从这张卡片放大，返回时缩回
+                .matchedTransitionSource(id: item.id, in: namespace) { source in
+                    source.clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { selectedItem = item }
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
         }
     }
 
