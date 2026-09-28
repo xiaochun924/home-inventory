@@ -34,8 +34,8 @@ struct WidgetSnapshot: Codable, Equatable {
 /// 注意：App Group 依赖签名 entitlement。若安装包未保留 App Group（部分自签工具会剥离），
 /// UserDefaults(suiteName:) 返回 nil，写入与读取均失败——这是 iOS 沙盒硬限制，代码无法绕过。
 enum WidgetSnapshotStore {
-    /// App Group 标识：与 App/Widget 的 entitlements 保持一致
-    static let groupID = "group.com.xiaochun924.HomeInventory"
+    /// App Group 标识：与 App/Widget 的 entitlements 保持一致（用户自签环境的实际 group ID）
+    static let groupID = "group.ffcd1c12e1a9728e.1"
     static let key = "widgetSnapshot"
 
     /// 是否已有 App 同步的数据（false = 无 App Group 权限 或 App 从未同步过）
