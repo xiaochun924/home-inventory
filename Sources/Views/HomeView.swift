@@ -372,9 +372,10 @@ struct FilterChip: View {
     }
 }
 
-/// 首页/区域页统一卡片（普通磨砂材质，参考 BatteryInsight 写法）：
-/// ultraThinMaterial 微透明白底 + 系统分隔线细描边；深浅模式自适应、通透不显黑，
-/// 无液态玻璃高光——避免切换闪烁与点击命中异常。
+/// 首页/区域页统一卡片（参考 BatteryInsight 写法）：
+/// 系统分组卡片色 secondarySystemGroupedBackground（浅色纯白 / 深色 #1C1C1E）
+/// + 系统分隔线细描边；与系统 List 卡片、详情/编辑/设置页卡片完全一致，
+/// 页面底色（淡灰）与卡片（纯白）层次分明。
 /// 需关注卡片：橙色描边高亮。
 struct HomeCard<Content: View>: View {
     var emphasized: Bool = false
@@ -386,7 +387,7 @@ struct HomeCard<Content: View>: View {
             .padding(16)
             .background {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.ultraThinMaterial)
+                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
             }
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
