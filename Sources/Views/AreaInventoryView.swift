@@ -35,7 +35,7 @@ struct AreaInventoryView: View {
                 VStack(spacing: 16) {
                     // 搜索（展开时显示，带顶部滑入过渡，主页同款）
                     if showSearch {
-                        searchField
+                        SearchField(text: $searchText)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
 
@@ -43,13 +43,19 @@ struct AreaInventoryView: View {
                     overviewCard
 
                     if items.isEmpty {
-                        emptyCard
+                        EmptyCard(icon: "mappin.and.ellipse",
+                                  text: searchText.isEmpty ? "「\(area)」还没有物品" : "没有找到「\(searchText)」",
+                                  addButtonTitle: searchText.isEmpty ? "添加物品到此区域" : nil,
+                                  addAction: {
+                                      pendingAddLocation = area
+                                      showAdd = true
+                                  })
                     } else {
-                        sectionHeader("物品", count: items.count)
+                        SectionHeader(title: "物品", count: items.count)
                         itemRows
                     }
 
-                    footerHint
+                    FooterHint(text: "此页面仅显示存放位置为「\(area)」的物品")
                     Spacer().frame(height: 96)
                 }
                 .padding(.horizontal, 20)
@@ -80,7 +86,7 @@ struct AreaInventoryView: View {
                                 .font(.system(size: 17, weight: .semibold))
                                 .foregroundColor(.white)
                                 .frame(width: 40, height: 40)
-                                .glassEffect(.regular.tint(Color(red: 0.36, green: 0.62, blue: 0.48)), in: .circle)
+                                .glassEffect(.regular.tint(Color.brandGreen), in: .circle)
                                 .contentShape(Rectangle())
                         }
                     }
@@ -96,24 +102,7 @@ struct AreaInventoryView: View {
                     .navigationTransition(.zoom(sourceID: item.id, in: namespace))
             }
         }
-        .tint(Color(red: 0.30, green: 0.55, blue: 0.42))
-    }
-
-    // MARK: - 搜索（主页同款）
-
-    private var searchField: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary)
-            TextField("搜索物品", text: $searchText)
-                .font(.system(size: 15))
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.adaptiveCardFill)
-                .background(RoundedRectangle(cornerRadius: 14).stroke(Color.adaptiveCardStroke, lineWidth: 1))
-        )
+        .tint(Color.brandTint)
     }
 
     // MARK: - 概览
@@ -121,58 +110,19 @@ struct AreaInventoryView: View {
     private var overviewCard: some View {
         HomeCard {
             HStack(spacing: 0) {
-                statColumn(icon: "shippingbox.fill", color: Color(red: 0.36, green: 0.62, blue: 0.48),
+                StatColumn(icon: "shippingbox.fill", color: Color.brandGreen,
                            value: items.count, label: "物品")
-                statDivider
-                statColumn(icon: "exclamationmark.circle.fill", color: .orange,
+                StatDivider()
+                StatColumn(icon: "exclamationmark.circle.fill", color: .orange,
                            value: attentionCount, label: "需关注")
-                statDivider
-                statColumn(icon: "shippingbox", color: .gray,
+                StatDivider()
+                StatColumn(icon: "shippingbox", color: .gray,
                            value: unopenedCount, label: "未拆封")
             }
         }
     }
 
-    private func statColumn(icon: String, color: Color, value: Int, label: String) -> some View {
-        VStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(.system(size: 15))
-                .foregroundColor(color)
-            Text("\(value)")
-                .font(.system(size: 26, weight: .bold))
-                .foregroundColor(.primary)
-                .contentTransition(.numericText())
-            Text(label)
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
-    }
-
-    private var statDivider: some View {
-        Rectangle()
-            .fill(Color.adaptiveSeparator)
-            .frame(width: 1, height: 34)
-    }
-
     // MARK: - 列表
-
-    private func sectionHeader(_ title: String, count: Int) -> some View {
-        HStack {
-            Text(title)
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(Color.adaptiveTextGreen)
-            Spacer()
-            Text("\(count) 件")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
-        }
-        .padding(.top, 6)
-    }
 
     private var itemRows: some View {
         VStack(spacing: 12) {
@@ -187,42 +137,5 @@ struct AreaInventoryView: View {
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
-    }
-
-    private var emptyCard: some View {
-        HomeCard {
-            VStack(spacing: 10) {
-                Image(systemName: "mappin.and.ellipse")
-                    .font(.system(size: 26))
-                    .foregroundColor(.secondary)
-                Text(searchText.isEmpty ? "「\(area)」还没有物品" : "没有找到「\(searchText)」")
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary)
-                if searchText.isEmpty {
-                    Button {
-                        pendingAddLocation = area
-                        showAdd = true
-                    } label: {
-                        Text("添加物品到此区域")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 7)
-                            .background(Capsule().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-        }
-        .transition(.opacity.combined(with: .scale(scale: 0.95)))
-    }
-
-    private var footerHint: some View {
-        Text("此页面仅显示存放位置为「\(area)」的物品")
-            .font(.system(size: 12))
-            .foregroundColor(.secondary)
-            .frame(maxWidth: .infinity)
-            .padding(.top, 4)
     }
 }
