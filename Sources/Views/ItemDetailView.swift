@@ -2,12 +2,16 @@ import SwiftUI
 import SwiftData
 
 /// 物品详情页：库存信息、拆封/补货、消耗预测、消耗与提醒
-/// 骨架对齐 BatteryInsight（RecordDetailView）：
-/// 系统 List + Section 分组；信息/提醒/记录用「图标方框 + 标题 + 数值」系统行；
-/// 头部保留大字库存（用户偏好）；拆封/补货按钮配色对齐截图（拆封=浅色纯色胶囊+深绿文字，
-/// 补货=深绿纯色胶囊+白字）；预测卡内为自定义内容（系统分组白卡行内）。
+/// 布局参考「有余」详情样式：极简顶栏 + 头部大标题（商品名/品类 | 库存大字）+
+/// 信息卡两列（存放位置 | 最近拆封+拆封进度）+ 拆封/补货按钮 + 预测/提醒卡片
+/// 按钮配色对齐截图：拆封=浅色纯色胶囊+深绿文字；补货=深绿纯色胶囊+白字（均非液态玻璃）
+/// 卡片使用普通磨砂材质（MaterialCard，参考 BatteryInsight 写法）——不做液态玻璃，
+/// 避免玻璃在二级页面/列表中的点击命中异常与切换闪烁。
+/// 拆封语义：本次拆封多少，使用中就是多少（替换而非累加）
 /// 稳定性：拆封/补货确认先 dismiss 再改模型，数量上限 999，避免返回主页闪烁/闪退
 /// 修改入口：顶栏按钮用 Button 触发 + 页面级 navigationDestination(isPresented:) 推编辑页
+/// （参考 BatteryInsight 已验证模式：zoom 转场页内再 push 二级页用 Button+destination，
+/// 不要用顶栏玻璃容器里的 NavigationLink——iOS 26 下 zoom 动画中触发会崩溃）
 /// 右滑返回：系统导航栏隐藏后手势失效，用 simultaneousGesture DragGesture 恢复（BatteryInsight 同款）
 struct ItemDetailView: View {
     @Environment(\.dismiss) private var dismiss
@@ -24,112 +28,63 @@ struct ItemDetailView: View {
     @State private var customLocation = ""
 
     var body: some View {
-        List {
-            // 头部：商品名 + 品类（左），库存大字（右）
-            headerBlock
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 2, trailing: 20))
+        ZStack {
+            AppBackground().ignoresSafeArea()
 
-            // 信息：存放位置 | 最近拆封 + 拆封进度
-            Section {
-                locationRow
-                lastUnpackRow
-            } header: {
-                Text("信息")
+            ScrollView {
+                VStack(spacing: 18) {
+                    headerBlock
+                    infoCard
+                    actionButtons
+                    predictionCard
+                    reminderCard
+                    recordsCard
+                    Spacer().frame(height: 80)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
             }
-
-            // 拆封 / 补货按钮
-            Section {
-                actionButtons
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 2, leading: 20, bottom: 2, trailing: 20))
-            }
-
-            // 消耗预测
-            Section {
-                predictionCard
-            } header: {
-                Text("消耗预测")
-            }
-
-            // 消耗与提醒
-            Section {
-                reminderRows
-            } header: {
-                Text("消耗与提醒")
-            }
-
-            // 记录
-            Section {
-                if item.unpackRecords.isEmpty && item.restockRecords.isEmpty {
-                    Text("暂无记录")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
-                } else {
-                    ForEach(combinedRecords) { line in
-                        HStack {
-                            Image(systemName: line.icon)
-                                .font(.system(size: 13))
-                                .foregroundColor(line.tint)
-                                .frame(width: 22)
-                            Text(line.text)
-                                .font(.system(size: 14))
-                            Spacer()
-                            Text(line.dateText)
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                // 极简顶栏（参考截图）：左返回 / 右编辑，中间留空，标题在内容区
+                GlassEffectContainer {
+                    HStack {
+                        GlassCircleButton(icon: "chevron.left") { dismiss() }
+                        Spacer()
+                        // 修改：Button 触发编辑页（纯色圆形按钮，稳定可点；
+                        // 页面级 navigationDestination 注册在下方，不用顶栏 NavigationLink）
+                        Button { showEdit = true } label: {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 40, height: 40)
+                                .background(Circle().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
                         }
-                        .padding(.vertical, 2)
                     }
                 }
-            } header: {
-                Text("记录")
+                .frame(height: 48)
+                .padding(.horizontal, 16)
             }
-        }
-        .listStyle(.insetGrouped)
-        .listSectionSpacing(12)
-        .scrollIndicators(.hidden)
-        .toolbar(.hidden, for: .navigationBar)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            // 极简顶栏：左返回 / 右编辑，中间留空，标题在内容区
-            GlassEffectContainer {
-                HStack {
-                    GlassCircleButton(icon: "chevron.left") { dismiss() }
-                    Spacer()
-                    // 修改：Button 触发编辑页（纯色圆形按钮，稳定可点）
-                    Button { showEdit = true } label: {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 40, height: 40)
-                            .background(Circle().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
-                    }
+            .sheet(isPresented: $showUnpack) {
+                UnpackSheet(item: item)
+            }
+            .sheet(isPresented: $showRestock) {
+                RestockSheet(item: item)
+            }
+            .alert("修改存放位置", isPresented: $showCustomLocation) {
+                TextField("输入新位置", text: $customLocation)
+                Button("确定") {
+                    setLocation(customLocation)
+                    customLocation = ""
                 }
+                Button("取消", role: .cancel) { customLocation = "" }
             }
-            .frame(height: 48)
-            .padding(.horizontal, 16)
-        }
-        .sheet(isPresented: $showUnpack) {
-            UnpackSheet(item: item)
-        }
-        .sheet(isPresented: $showRestock) {
-            RestockSheet(item: item)
-        }
-        .alert("修改存放位置", isPresented: $showCustomLocation) {
-            TextField("输入新位置", text: $customLocation)
-            Button("确定") {
-                setLocation(customLocation)
-                customLocation = ""
+            // 编辑页：页面级 destination（BatteryInsight 已验证模式）
+            .navigationDestination(isPresented: $showEdit) {
+                ItemEditView(mode: .edit(item))
             }
-            Button("取消", role: .cancel) { customLocation = "" }
         }
-        // 编辑页：页面级 destination（BatteryInsight 已验证模式）
-        .navigationDestination(isPresented: $showEdit) {
-            ItemEditView(mode: .edit(item))
-        }
-        // 系统导航栏已隐藏，手动恢复右滑返回手势
+        // 系统导航栏已隐藏，手动恢复右滑返回手势（BatteryInsight 同款写法）
         .simultaneousGesture(
             DragGesture(minimumDistance: 25)
                 .onEnded { value in
@@ -169,56 +124,43 @@ struct ItemDetailView: View {
                     .foregroundColor(.secondary)
             }
         }
+        .padding(.horizontal, 4)
     }
 
-    // MARK: - 信息行（BatteryInsight 图标方框行样式）
+    // MARK: - 信息卡：存放位置 | 最近拆封 + 拆封进度
 
-    private var locationRow: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "mappin.and.ellipse")
-                .font(.subheadline)
-                .foregroundStyle(Color(red: 0.36, green: 0.62, blue: 0.48))
-                .frame(width: 26, height: 26)
-                .background(Color(red: 0.36, green: 0.62, blue: 0.48).opacity(0.15), in: RoundedRectangle(cornerRadius: 7))
-            VStack(alignment: .leading, spacing: 1) {
-                Text("存放位置")
-                    .font(.subheadline)
-                Text("点击可修改")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+    private var infoCard: some View {
+        MaterialCard {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("存放位置")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    locationControl
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text("最近拆封")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Text("\(Int(unpackProgress * 100))%")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(unpackProgress > 0 ? Color(red: 0.28, green: 0.52, blue: 0.40) : Color.secondary)
+                    }
+                    if let rec = item.lastUnpackRecord {
+                        Text("\(Format.shortDate(rec.date))·\(Format.relativeDays(from: rec.date))·\(rec.quantity)包")
+                            .font(.system(size: 13))
+                            .foregroundColor(.primary)
+                    } else {
+                        Text("暂无记录")
+                            .font(.system(size: 13))
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
-            Spacer()
-            locationControl
+            .padding(16)
         }
-        .padding(.vertical, 1)
-    }
-
-    private var lastUnpackRow: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "shippingbox")
-                .font(.subheadline)
-                .foregroundStyle(.green)
-                .frame(width: 26, height: 26)
-                .background(.green.opacity(0.15), in: RoundedRectangle(cornerRadius: 7))
-            VStack(alignment: .leading, spacing: 1) {
-                Text("最近拆封")
-                    .font(.subheadline)
-                Text("拆封进度 \(Int(unpackProgress * 100))%")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            if let rec = item.lastUnpackRecord {
-                Text("\(Format.shortDate(rec.date))·\(Format.relativeDays(from: rec.date))·\(rec.quantity)包")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.primary)
-            } else {
-                Text("暂无记录")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 1)
     }
 
     /// 拆封进度 = 使用中 / (库存 + 使用中)，0% 未在使用 → 100% 全部在使用中
@@ -228,7 +170,7 @@ struct ItemDetailView: View {
         return min(max(Double(item.inUse) / Double(total), 0), 1)
     }
 
-    /// 存放位置修改入口：弹出历史已用位置供选择 + 自定义输入
+    /// 存放位置修改入口：弹出历史已用位置供选择 + 自定义输入（自定义过的位置自动进入候选）
     private var locationControl: some View {
         Menu {
             ForEach(usedLocations, id: \.self) { r in
@@ -243,12 +185,18 @@ struct ItemDetailView: View {
         } label: {
             HStack(spacing: 6) {
                 Text(item.location)
-                    .font(.subheadline.bold())
+                    .font(.system(size: 15, weight: .medium))
                     .foregroundColor(.primary)
                 Image(systemName: "pencil")
                     .font(.system(size: 11))
                     .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                Capsule().fill(Color.adaptiveCardFill)
+                    .overlay(Capsule().stroke(Color.adaptiveCardStroke, lineWidth: 1))
+            )
         }
     }
 
@@ -286,71 +234,101 @@ struct ItemDetailView: View {
         }
     }
 
-    // MARK: - 消耗预测（系统分组卡内自定义内容，BatteryInsight trendCard 同款）
+    // MARK: - 消耗预测
 
     private var predictionCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("预计\(item.remainingDays)天后耗尽")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
-                    .contentTransition(.numericText())
-                Spacer()
-                StatusCapsule(text: item.status.title,
-                              color: item.needsAttention ? .orange : Color(red: 0.36, green: 0.62, blue: 0.48))
-            }
-            HStack {
-                Text("基于30天预测窗口")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-            }
-            Divider().opacity(0.4)
-            HStack {
-                Text("今天·剩余\(item.totalStock)包，预计\(item.remainingDays)天后耗尽")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-            }
-            HStack {
-                Text("\(Format.shortDate(item.exhaustionDate))·预计用完当前库存")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(.vertical, 6)
-    }
+        MaterialCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("消耗预测")
+                        .font(.system(size: 16, weight: .semibold))
+                    Spacer()
+                    Text("基于30天预测窗口")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
 
-    // MARK: - 消耗与提醒（BatteryInsight 图标方框行）
+                HStack(alignment: .lastTextBaseline) {
+                    Text("预计\(item.remainingDays)天后耗尽")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
+                        .contentTransition(.numericText())
+                    Spacer()
+                    StatusCapsule(text: item.status.title, color: item.needsAttention ? .orange : Color(red: 0.36, green: 0.62, blue: 0.48))
+                }
 
-    private var reminderRows: some View {
-        Group {
-            detailRow("提醒依据", value: item.reminderRule == 1 ? "按库存数量" : "按剩余天数",
-                      icon: "bell.fill", tint: .orange)
-            detailRow("平均消耗", value: "\(item.avgConsumeDays)天",
-                      icon: "arrow.down.right", tint: .blue)
-            detailRow("提醒规则", value: item.reminderRule == 1 ? "库存≤\(item.reminderDays)件" : "剩余≤\(item.reminderDays)天",
-                      icon: "exclamationmark.triangle.fill", tint: .green)
+                HStack {
+                    Text("今天·剩余\(item.totalStock)包，预计\(item.remainingDays)天后耗尽")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+                HStack {
+                    Text("\(Format.shortDate(item.exhaustionDate))·预计用完当前库存")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(16)
         }
     }
 
-    private func detailRow(_ title: String, value: String, icon: String, tint: Color) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.subheadline)
-                .foregroundStyle(tint)
-                .frame(width: 26, height: 26)
-                .background(tint.opacity(0.15), in: RoundedRectangle(cornerRadius: 7))
+    // MARK: - 消耗与提醒
+
+    private var reminderCard: some View {
+        MaterialCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("消耗与提醒")
+                    .font(.system(size: 16, weight: .semibold))
+                Divider().opacity(0.4)
+                row("提醒依据", value: item.reminderRule == 1 ? "按库存数量" : "按剩余天数")
+                row("平均消耗", value: "\(item.avgConsumeDays)天")
+                row("提醒规则", value: item.reminderRule == 1 ? "库存≤\(item.reminderDays)件" : "剩余≤\(item.reminderDays)天")
+            }
+            .padding(16)
+        }
+    }
+
+    private func row(_ title: String, value: String) -> some View {
+        HStack {
             Text(title)
-                .font(.subheadline)
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
             Spacer()
             Text(value)
-                .font(.subheadline.bold())
-                .monospacedDigit()
-                .multilineTextAlignment(.trailing)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.primary)
         }
-        .padding(.vertical, 1)
     }
 
     // MARK: - 记录
+
+    private var recordsCard: some View {
+        MaterialCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("记录")
+                    .font(.system(size: 16, weight: .semibold))
+                if item.unpackRecords.isEmpty && item.restockRecords.isEmpty {
+                    Text("暂无记录")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                } else {
+                    ForEach(combinedRecords) { line in
+                        HStack {
+                            Text(line.text)
+                                .font(.system(size: 13))
+                            Spacer()
+                            Text(line.dateText)
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            .padding(16)
+        }
+    }
 
     /// 合并后的记录行（拆封 + 补货，按时间倒序）
     private struct RecordRow: Identifiable {
@@ -358,27 +336,15 @@ struct ItemDetailView: View {
         let text: String
         let dateText: String
         let date: Date
-        let icon: String
-        let tint: Color
     }
 
     private var combinedRecords: [RecordRow] {
         var rows: [RecordRow] = []
         for rec in item.unpackRecords {
-            rows.append(RecordRow(id: rec.id,
-                                  text: "拆封 \(rec.quantity)包",
-                                  dateText: Format.shortDate(rec.date),
-                                  date: rec.date,
-                                  icon: "shippingbox",
-                                  tint: Color(red: 0.36, green: 0.62, blue: 0.48)))
+            rows.append(RecordRow(id: rec.id, text: "拆封 \(rec.quantity)包", dateText: Format.shortDate(rec.date), date: rec.date))
         }
         for rec in item.restockRecords {
-            rows.append(RecordRow(id: rec.id,
-                                  text: "补货 \(rec.quantity)包",
-                                  dateText: Format.shortDate(rec.date),
-                                  date: rec.date,
-                                  icon: "plus.circle.fill",
-                                  tint: Color(red: 0.20, green: 0.42, blue: 0.37)))
+            rows.append(RecordRow(id: rec.id, text: "补货 \(rec.quantity)包", dateText: Format.shortDate(rec.date), date: rec.date))
         }
         return rows.sorted { $0.date > $1.date }
     }

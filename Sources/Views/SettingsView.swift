@@ -2,8 +2,9 @@ import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 
-/// 设置页：数据统计、区域管理（可排序）、备份与恢复、数据管理
-/// 骨架对齐 BatteryInsight：系统 List + Section 分组，行用「图标方框 + 标题 + 数值」系统行
+/// 设置页：区域管理（可排序）、备份与恢复、数据管理
+/// 卡片全部使用普通磨砂卡（MaterialCard，BatteryInsight 风格统一）——
+/// 与主页/区域/详情/编辑页卡片完全一致：ultraThinMaterial + separator 描边
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var items: [InventoryItem]
@@ -25,132 +26,195 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                // 数据统计：点击进入主页内容
-                Section {
-                    statRow(icon: "shippingbox.fill", tint: .green, title: "物品总数",
-                            value: "\(items.count)", action: { showHome = true })
-                    statRow(icon: "exclamationmark.circle.fill", tint: .orange, title: "需关注",
-                            value: "\(items.filter { $0.needsAttention }.count)", action: { showHome = true })
-                    statRow(icon: "shippingbox", tint: .gray, title: "尚未拆封",
-                            value: "\(items.filter { !$0.isOpened }.count)", action: { showHome = true })
-                } header: {
-                    HStack {
-                        Text("数据统计")
-                        Spacer()
-                        Button { showHome = true } label: {
-                            Label("查看", systemImage: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
-                // 区域管理：添加区域后底部导航出现对应分区入口；↑↓ 可调整顺序
-                Section {
-                    if areas.isEmpty {
-                        HStack(spacing: 10) {
-                            Image(systemName: "location")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .frame(width: 26, height: 26)
-                                .background(.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 7))
-                            Text("还没有区域")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 1)
-                    } else {
-                        ForEach(areas) { area in
-                            areaRow(area)
-                        }
-                    }
-                    Button { showAddArea = true } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.subheadline)
-                                .foregroundStyle(Color(red: 0.36, green: 0.62, blue: 0.48))
-                                .frame(width: 26, height: 26)
-                                .background(Color(red: 0.36, green: 0.62, blue: 0.48).opacity(0.15), in: RoundedRectangle(cornerRadius: 7))
-                            Text("添加区域")
-                                .font(.subheadline)
-                                .foregroundStyle(Color(red: 0.36, green: 0.62, blue: 0.48))
-                        }
-                        .padding(.vertical, 1)
-                    }
-                    .buttonStyle(.plain)
-                } header: {
-                    Text("区域管理")
-                } footer: {
-                    Text("添加区域后，底部导航会显示该区域的库存管理入口；第一个区域为默认进入页，可用 ↑↓ 调整顺序。")
-                }
-                .alert("添加区域", isPresented: $showAddArea) {
-                    TextField("区域名称，如：东阳", text: $newAreaName)
-                    Button("添加") { addArea() }
-                    Button("取消", role: .cancel) { newAreaName = "" }
-                } message: {
-                    Text("添加后底部导航会出现该区域的库存管理入口，并自动设为默认进入页。")
-                }
-
-                // 备份与恢复
-                Section {
-                    Button(action: prepareBackup) {
-                        row(icon: "square.and.arrow.up", tint: .green, title: "备份数据")
-                    }
-                    .buttonStyle(.plain)
-                    // 原生文件选择器：从最顶层控制器直接弹出，避免嵌套模态选不中文件
-                    Button(action: {
-                        DocumentPicker.shared.present(
-                            onPicked: handlePicked,
-                            onCancel: {}
-                        )
-                    }) {
-                        row(icon: "square.and.arrow.down", tint: .green, title: "恢复数据")
-                    }
-                    .buttonStyle(.plain)
-                } header: {
-                    Text("备份与恢复")
-                }
-                // 选完文件并解码成功后再确认是否应用
-                .alert("确认恢复？", isPresented: $confirmApply) {
-                    Button("取消", role: .cancel) { pendingRestore = [] }
-                    Button("恢复", role: .destructive) { applyRestore() }
-                } message: {
-                    Text("备份中共 \(pendingCount) 件物品、\(pendingAreas.count) 个区域，将替换当前全部数据（物品与记录）。")
-                }
-
-                // 数据管理
-                Section {
+            ScrollView {
+                VStack(spacing: 18) {
+                    // 数据统计：点击进入主页内容
                     Button {
-                        showClearConfirm = true
+                        showHome = true
                     } label: {
-                        row(icon: "trash", tint: .red, title: "清空全部数据")
+                        MaterialCard {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Text("数据统计")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(.secondary)
+                                }
+                                statRow("物品总数", "\(items.count)")
+                                statRow("需关注", "\(items.filter { $0.needsAttention }.count)")
+                                statRow("尚未拆封", "\(items.filter { !$0.isOpened }.count)")
+                            }
+                            .padding(16)
+                        }
                     }
                     .buttonStyle(.plain)
-                } header: {
-                    Text("数据管理")
-                }
-                .alert("确定清空全部数据？", isPresented: $showClearConfirm) {
-                    Button("取消", role: .cancel) {}
-                    Button("清空", role: .destructive) {
-                        clearAll()
-                    }
-                } message: {
-                    Text("所有物品、区域、拆封与补货记录将被永久删除，且不可恢复。")
-                }
 
-                Section {
+                    // 区域管理：添加区域后底部导航出现对应分区入口；↑↓ 可调整顺序
+                    MaterialCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("区域管理")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("添加区域后，底部导航会显示该区域的库存管理入口；第一个区域为默认进入页，可用 ↑↓ 调整顺序。")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                            if areas.isEmpty {
+                                HStack {
+                                    Image(systemName: "location")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.secondary)
+                                    Text("还没有区域")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 4)
+                            } else {
+                                ForEach(areas) { area in
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "location.fill")
+                                            .font(.system(size: 13))
+                                            .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                        Text(area.name)
+                                            .font(.system(size: 15, weight: .medium))
+                                        Spacer()
+                                        Text("\(items.filter { $0.location == area.name }.count) 件")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.secondary)
+                                        // 上移
+                                        Button {
+                                            moveArea(area, offset: -1)
+                                        } label: {
+                                            Image(systemName: "chevron.up")
+                                                .font(.system(size: 12, weight: .semibold))
+                                                .foregroundColor(areas.first?.id == area.id ? Color.gray.opacity(0.3) : Color(red: 0.36, green: 0.62, blue: 0.48))
+                                        }
+                                        .disabled(areas.first?.id == area.id)
+                                        // 下移
+                                        Button {
+                                            moveArea(area, offset: 1)
+                                        } label: {
+                                            Image(systemName: "chevron.down")
+                                                .font(.system(size: 12, weight: .semibold))
+                                                .foregroundColor(areas.last?.id == area.id ? Color.gray.opacity(0.3) : Color(red: 0.36, green: 0.62, blue: 0.48))
+                                        }
+                                        .disabled(areas.last?.id == area.id)
+                                        Button {
+                                            deleteArea(area)
+                                        } label: {
+                                            Image(systemName: "trash")
+                                                .font(.system(size: 13))
+                                                .foregroundColor(.red)
+                                        }
+                                    }
+                                }
+                            }
+                            Divider().opacity(0.4)
+                            Button {
+                                showAddArea = true
+                            } label: {
+                                HStack {
+                                    Text("添加区域")
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                    Spacer()
+                                    Image(systemName: "plus")
+                                        .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                }
+                            }
+                        }
+                        .padding(16)
+                    }
+                    .alert("添加区域", isPresented: $showAddArea) {
+                        TextField("区域名称，如：东阳", text: $newAreaName)
+                        Button("添加") { addArea() }
+                        Button("取消", role: .cancel) { newAreaName = "" }
+                    } message: {
+                        Text("添加后底部导航会出现该区域的库存管理入口，并自动设为默认进入页。")
+                    }
+
+                    MaterialCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("备份与恢复")
+                                .font(.system(size: 16, weight: .semibold))
+                            Button(action: prepareBackup) {
+                                HStack {
+                                    Text("备份数据")
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                    Spacer()
+                                    Image(systemName: "square.and.arrow.up")
+                                        .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                }
+                            }
+                            Divider().opacity(0.4)
+                            // 原生文件选择器：从最顶层控制器直接弹出，避免嵌套模态选不中文件
+                            Button(action: {
+                                DocumentPicker.shared.present(
+                                    onPicked: handlePicked,
+                                    onCancel: {}
+                                )
+                            }) {
+                                HStack {
+                                    Text("恢复数据")
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                    Spacer()
+                                    Image(systemName: "square.and.arrow.down")
+                                        .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                }
+                            }
+                        }
+                        .padding(16)
+                    }
+                    // 选完文件并解码成功后再确认是否应用
+                    .alert("确认恢复？", isPresented: $confirmApply) {
+                        Button("取消", role: .cancel) { pendingRestore = [] }
+                        Button("恢复", role: .destructive) { applyRestore() }
+                    } message: {
+                        Text("备份中共 \(pendingCount) 件物品、\(pendingAreas.count) 个区域，将替换当前全部数据（物品与记录）。")
+                    }
+
+                    MaterialCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("数据管理")
+                                .font(.system(size: 16, weight: .semibold))
+                            Button {
+                                showClearConfirm = true
+                            } label: {
+                                HStack {
+                                    Text("清空全部数据")
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundColor(.red)
+                                    Spacer()
+                                    Image(systemName: "trash")
+                                        .foregroundColor(.red)
+                                }
+                            }
+                        }
+                        .padding(16)
+                    }
+                    .alert("确定清空全部数据？", isPresented: $showClearConfirm) {
+                        Button("取消", role: .cancel) {}
+                        Button("清空", role: .destructive) {
+                            clearAll()
+                        }
+                    } message: {
+                        Text("所有物品、区域、拆封与补货记录将被永久删除，且不可恢复。")
+                    }
+
                     Text("家庭库存管理 v1.0\n黑子 ")
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
+                        .padding(.top, 8)
+
+                    Spacer().frame(height: 60)
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
             }
-            .listStyle(.insetGrouped)
-            .listSectionSpacing(12)
-            .scrollIndicators(.hidden)
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
                 GlassTopBar(title: "设置")
@@ -177,103 +241,18 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - 行组件（BatteryInsight 图标方框行）
-
-    private func statRow(icon: String, tint: Color, title: String, value: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.subheadline)
-                    .foregroundStyle(tint)
-                    .frame(width: 26, height: 26)
-                    .background(tint.opacity(0.15), in: RoundedRectangle(cornerRadius: 7))
-                Text(title)
-                    .font(.subheadline)
-                Spacer()
-                Text(value)
-                    .font(.subheadline.bold())
-                    .monospacedDigit()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.vertical, 1)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func row(icon: String, tint: Color, title: String) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.subheadline)
-                .foregroundStyle(tint)
-                .frame(width: 26, height: 26)
-                .background(tint.opacity(0.15), in: RoundedRectangle(cornerRadius: 7))
+    private func statRow(_ title: String, _ value: String) -> some View {
+        HStack {
             Text(title)
-                .font(.subheadline)
+                .font(.system(size: 14))
+                .foregroundColor(.secondary)
             Spacer()
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+            Text(value)
+                .font(.system(size: 15, weight: .semibold))
         }
-        .padding(.vertical, 1)
     }
 
-    // MARK: - 区域管理行
-
-    private func areaRow(_ area: InventoryArea) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: "location.fill")
-                .font(.subheadline)
-                .foregroundStyle(Color(red: 0.36, green: 0.62, blue: 0.48))
-                .frame(width: 26, height: 26)
-                .background(Color(red: 0.36, green: 0.62, blue: 0.48).opacity(0.15), in: RoundedRectangle(cornerRadius: 7))
-            Text(area.name)
-                .font(.subheadline)
-            Spacer()
-            Text("\(items.filter { $0.location == area.name }.count) 件")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            // 上移
-            Button {
-                moveArea(area, offset: -1)
-            } label: {
-                Image(systemName: "chevron.up")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(areas.first?.id == area.id ? .gray.opacity(0.3) : Color(red: 0.36, green: 0.62, blue: 0.48))
-                    .frame(width: 24, height: 24)
-                    .background(.quaternary, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .disabled(areas.first?.id == area.id)
-            // 下移
-            Button {
-                moveArea(area, offset: 1)
-            } label: {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(areas.last?.id == area.id ? .gray.opacity(0.3) : Color(red: 0.36, green: 0.62, blue: 0.48))
-                    .frame(width: 24, height: 24)
-                    .background(.quaternary, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .disabled(areas.last?.id == area.id)
-            // 删除
-            Button {
-                deleteArea(area)
-            } label: {
-                Image(systemName: "trash")
-                    .font(.system(size: 11))
-                    .foregroundColor(.red)
-                    .frame(width: 24, height: 24)
-                    .background(.red.opacity(0.15), in: Circle())
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.vertical, 1)
-    }
-
-    // MARK: - 区域管理逻辑
+    // MARK: - 区域管理
 
     private func addArea() {
         let trimmed = newAreaName.trimmingCharacters(in: .whitespaces)
