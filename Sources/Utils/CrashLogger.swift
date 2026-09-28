@@ -1,31 +1,15 @@
 import Foundation
 
 /// 崩溃日志采集器
-/// 安装未捕获异常与常见崩溃信号处理器，崩溃时自动把信息写入应用本地
-/// Documents/CrashLogs/ 目录（文件名带时间戳，最多保留最近 20 份）。
-/// 日志可通过 iOS「文件」App → 我的 iPhone → Home Inventory → CrashLogs 查看/导出，
-/// 闪退后把日志文件发出来即可定位崩溃点。
+/// 未捕获异常 / 崩溃信号自动写入 Documents/CrashLogs/crash_<时间戳>.log
 ///
-/// 注意：信号处理器内只能调用静态方法（@convention(c) 不允许捕获上下文），
-/// 写入过程为「尽力而为」，崩溃场景下部分系统调用可能不可用，但不影响 App 正常运行。
+/// 实现要点：
+///  - 处理器必须是 @convention(c) 闭包（不能捕获上下文），且可在任意线程触发，
+///    因此文件写入全部走 POSIX 层（mkdir/open/write/close + NSHomeDirectory），
+///    不使用 Bundle.main / FileManager.default / ProcessInfo 等 @MainActor 单例，
+///    避免 iOS 26 SDK 下的隔离编译错误。
+///  - 日志为「尽力而为」写入：崩溃场景下部分系统调用可能不可用，但不影响 App 正常运行。
 enum CrashLogger {
-    /// 崩溃日志目录：Documents/CrashLogs
-    static let directoryURL: URL = {
-        let base = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let dir = base.appendingPathComponent("CrashLogs", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
-    }()
-
-    /// 信号名对照表（供信号处理器读取，避免闭包捕获局部变量）
-    private static let signalNames: [Int32: String] = [
-        SIGABRT: "SIGABRT",
-        SIGSEGV: "SIGSEGV",
-        SIGBUS: "SIGBUS",
-        SIGILL: "SIGILL",
-        SIGFPE: "SIGFPE"
-    ]
-
     /// 在 App 启动时调用一次
     static func install() {
         // 未捕获的 NSException（Swift fatalError / force unwrap 等）
@@ -38,58 +22,58 @@ enum CrashLogger {
                 "调用栈：",
                 exception.callStackSymbols.joined(separator: "\n")
             ].joined(separator: "\n")
-            write(body)
+            writeCrash(body)
         }
 
         // 常见崩溃信号
-        installSignal(SIGABRT)
-        installSignal(SIGSEGV)
-        installSignal(SIGBUS)
-        installSignal(SIGILL)
-        installSignal(SIGFPE)
+        installSignalHandler(SIGABRT)
+        installSignalHandler(SIGSEGV)
+        installSignalHandler(SIGBUS)
+        installSignalHandler(SIGILL)
+        installSignalHandler(SIGFPE)
     }
 
-    private static func installSignal(_ sig: Int32) {
+    private static func installSignalHandler(_ sig: Int32) {
         signal(sig) { code in
-            let name = signalNames[code] ?? "信号(\(code))"
             let body = [
                 "类型：Signal",
-                "信号：\(name)",
+                "信号：\(signalName(code))",
                 "",
                 "调用栈：",
                 Thread.callStackSymbols.joined(separator: "\n")
             ].joined(separator: "\n")
-            write(body)
+            writeCrash(body)
         }
     }
 
-    /// 组装并写入日志文件（带时间戳文件名，保留最近 20 份）
-    private static func write(_ body: String) {
-        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        let osVersion = ProcessInfo.processInfo.operatingSystemVersionString
-        let header = [
-            "═══ Home Inventory 崩溃日志 ═══",
-            "时间：\(Date())",
-            "App 版本：\(appVersion)",
-            "系统版本：iOS \(osVersion)",
-            "==================================",
-            body
-        ].joined(separator: "\n")
+    private static func signalName(_ code: Int32) -> String {
+        switch code {
+        case SIGABRT: return "SIGABRT"
+        case SIGSEGV: return "SIGSEGV"
+        case SIGBUS: return "SIGBUS"
+        case SIGILL: return "SIGILL"
+        case SIGFPE: return "SIGFPE"
+        default: return "信号(\(code))"
+        }
+    }
 
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HHmmss"
-        let fileName = "crash_\(formatter.string(from: Date())).log"
-        let fileURL = directoryURL.appendingPathComponent(fileName)
-        try? header.write(to: fileURL, atomically: true, encoding: .utf8)
+    /// 崩溃日志目录：<沙盒>/Documents/CrashLogs（已存在时 mkdir 返回 -1，忽略）
+    private static func crashDirPath() -> String {
+        let dir = NSHomeDirectory() + "/Documents/CrashLogs"
+        _ = dir.withCString { mkdir($0, 0o755) }
+        return dir
+    }
 
-        // 只保留最近 20 份日志，避免无限堆积
-        let files = (try? FileManager.default.contentsOfDirectory(at: directoryURL, includingPropertiesForKeys: nil)) ?? []
-        let logs = files.filter { $0.pathExtension == "log" }
-            .sorted { $0.lastPathComponent > $1.lastPathComponent }
-        if logs.count > 20 {
-            for f in logs.dropFirst(20) {
-                try? FileManager.default.removeItem(at: f)
-            }
+    /// 追加写入崩溃日志（文件名带时间戳）
+    private static func writeCrash(_ body: String) {
+        let dir = crashDirPath()
+        let ts = Int(Date().timeIntervalSince1970)
+        let path = "\(dir)/crash_\(ts).log"
+        let content = "═══ Home Inventory 崩溃日志 ═══\n时间：\(Date())\n" + body + "\n"
+        let fd = path.withCString { open($0, O_WRONLY | O_CREAT | O_APPEND, 0o644) }
+        if fd >= 0 {
+            _ = content.withCString { write(fd, $0, strlen($0)) }
+            close(fd)
         }
     }
 }
