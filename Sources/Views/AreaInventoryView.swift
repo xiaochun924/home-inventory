@@ -3,7 +3,7 @@ import SwiftData
 
 /// 分区库存管理页：显示某个区域的全部物品，独立管理（拆封/补货/详情）
 /// 入口在底部 tab 栏（设置页添加区域后自动出现）
-/// 顶栏：搜索按钮在最左侧、添加按钮在最右侧，均为官方液态玻璃圆形按钮
+/// 顶栏：搜索按钮在最左侧、添加按钮在最右侧，均为官方液态玻璃圆形按钮（非交互玻璃，避免切换闪烁）
 /// 布局复用主页卡片样式：概览条 + 物品卡列表 + zoom 详情转场
 struct AreaInventoryView: View {
     @Environment(\.modelContext) private var modelContext
@@ -80,7 +80,7 @@ struct AreaInventoryView: View {
                                 .font(.system(size: 17, weight: .semibold))
                                 .foregroundColor(.white)
                                 .frame(width: 40, height: 40)
-                                .glassEffect(.regular.tint(Color(red: 0.36, green: 0.62, blue: 0.48)).interactive(), in: .circle)
+                                .glassEffect(.regular.tint(Color(red: 0.36, green: 0.62, blue: 0.48)), in: .circle)
                         }
                     }
                 )

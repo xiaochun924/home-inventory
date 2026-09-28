@@ -44,6 +44,8 @@ extension Color {
 // 规范：纯透明导航栏；左上角圆形玻璃返回按钮；中间悬浮玻璃胶囊标题；
 // 完全隐藏系统导航栏；不加白色蒙皮 / 磨砂遮挡。
 // 全部使用 iOS 26 官方 Liquid Glass（glassEffect / GlassEffectContainer）。
+// 注意：玻璃按钮统一使用非交互玻璃（不加 .interactive()）——
+// 交互高光是 iOS 26 Liquid Glass 在页面切换/进出动画时产生高光闪烁（过曝）的主要原因，去掉后更稳。
 struct GlassTopBar<Leading: View, Trailing: View>: View {
     let title: String
     @ViewBuilder var leading: () -> Leading
@@ -82,7 +84,7 @@ struct GlassTopBar<Leading: View, Trailing: View>: View {
     }
 }
 
-/// 圆形玻璃返回按钮（官方 Liquid Glass，可交互）
+/// 圆形玻璃返回按钮（官方 Liquid Glass，非交互玻璃，避免切换动画高光闪烁）
 struct GlassCircleButton: View {
     let icon: String
     var tint: Color = Color(red: 0.30, green: 0.55, blue: 0.42)
@@ -94,7 +96,7 @@ struct GlassCircleButton: View {
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(tint)
                 .frame(width: 40, height: 40)
-                .glassEffect(.regular.interactive(), in: .circle)
+                .glassEffect(.regular, in: .circle)
         }
     }
 }
@@ -110,7 +112,7 @@ struct GlassCard<Content: View>: View {
     }
 }
 
-/// 胶囊主按钮（官方 Liquid Glass，tint 上色 + 可交互）
+/// 胶囊主按钮（官方 Liquid Glass，tint 上色，非交互玻璃避免闪烁）
 struct GlassCapsuleButton: View {
     let title: String
     var tint: Color = Color(red: 0.36, green: 0.62, blue: 0.48)
@@ -123,7 +125,7 @@ struct GlassCapsuleButton: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
-                .glassEffect(.regular.tint(tint).interactive(), in: .capsule)
+                .glassEffect(.regular.tint(tint), in: .capsule)
         }
     }
 }

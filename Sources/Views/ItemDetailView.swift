@@ -9,6 +9,7 @@ import SwiftData
 /// 稳定性：拆封/补货确认先 dismiss 再改模型，数量上限 999，避免返回主页闪烁/闪退
 /// 修改入口：NavigationLink 直连编辑页（不再用 navigationDestination(isPresented:)，
 /// 避免 zoom 转场推入的页面内再嵌套注册 destination 导致的闪退）
+/// 玻璃按钮统一去 .interactive()：避免 iOS 26 Liquid Glass 在页面进出动画时的高光闪烁（过曝）
 struct ItemDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -46,7 +47,7 @@ struct ItemDetailView: View {
                     HStack {
                         GlassCircleButton(icon: "chevron.left") { dismiss() }
                         Spacer()
-                        // 修改：NavigationLink 直连编辑页（保持玻璃圆形样式）
+                        // 修改：NavigationLink 直连编辑页（保持玻璃圆形样式，非交互玻璃避免闪烁）
                         NavigationLink {
                             ItemEditView(mode: .edit(item))
                         } label: {
@@ -54,7 +55,7 @@ struct ItemDetailView: View {
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
                                 .frame(width: 40, height: 40)
-                                .glassEffect(.regular.tint(Color(red: 0.36, green: 0.62, blue: 0.48)).interactive(), in: .circle)
+                                .glassEffect(.regular.tint(Color(red: 0.36, green: 0.62, blue: 0.48)), in: .circle)
                         }
                         .buttonStyle(.plain)
                     }

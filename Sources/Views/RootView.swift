@@ -61,11 +61,13 @@ struct RootView: View {
     }
 }
 
-/// 全应用统一背景：浅色=纯白，深色=近黑（自适应）
+/// 全应用统一背景：浅色=柔和暖白（降低整体亮度与白色高光刺激，缓解液态玻璃过曝感），深色=近黑（自适应）
 struct AppBackground: View {
     var body: some View {
         Color(uiColor: UIColor { t in
-            t.userInterfaceStyle == .dark ? UIColor(white: 0.08, alpha: 1) : UIColor.white
+            t.userInterfaceStyle == .dark
+                ? UIColor(white: 0.08, alpha: 1)
+                : UIColor(red: 0.965, green: 0.968, blue: 0.955, alpha: 1)
         })
         .ignoresSafeArea()
     }
