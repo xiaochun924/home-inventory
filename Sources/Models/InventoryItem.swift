@@ -45,6 +45,12 @@ final class InventoryItem {
     var isOpened: Bool = true        // 是否已拆封
     var lastUnpackDate: Date?        // 最近拆封日期
 
+    // 保质期：启用后可按「到期日期」或「保质期月数」两种方式记录
+    var expiryEnabled: Bool = false  // 是否启用保质期
+    var expiryMode: Int = 0          // 0=按到期日期 1=按保质期月数
+    var expiryDate: Date?            // 到期日期（expiryMode == 0 时使用）
+    var shelfLifeMonths: Int = 12    // 保质期月数（expiryMode == 1 时使用）
+
     // 拆封记录（级联删除）
     @Relationship(deleteRule: .cascade, inverse: \UnpackRecord.item)
     var unpackRecords: [UnpackRecord] = []
@@ -64,7 +70,11 @@ final class InventoryItem {
         avgConsumeDays: Int = 5,
         reminderDays: Int = 3,
         reminderRule: Int = 0,
-        isOpened: Bool = true
+        isOpened: Bool = true,
+        expiryEnabled: Bool = false,
+        expiryMode: Int = 0,
+        expiryDate: Date? = nil,
+        shelfLifeMonths: Int = 12
     ) {
         self.id = id
         self.name = name
@@ -79,6 +89,10 @@ final class InventoryItem {
         self.createdAt = Date()
         self.isOpened = isOpened
         self.lastUnpackDate = isOpened ? Date() : nil
+        self.expiryEnabled = expiryEnabled
+        self.expiryMode = expiryMode
+        self.expiryDate = expiryDate
+        self.shelfLifeMonths = max(1, shelfLifeMonths)
     }
 
     // MARK: - 派生计算属性
