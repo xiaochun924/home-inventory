@@ -372,23 +372,22 @@ struct FilterChip: View {
     }
 }
 
-/// 首页可见化卡片：浅色填充 + 描边 + 柔和投影（白底上可清晰辨认），深色自动转深灰卡片
+/// 首页/区域页统一卡片：官方液态玻璃卡片（与设置页/添加页 GlassCard 同风格）
+/// 普通卡片：透明玻璃（.clear）；需关注卡片：带橙色 tint 的液态玻璃高亮
 struct HomeCard<Content: View>: View {
     var emphasized: Bool = false
+    var cornerRadius: CGFloat = 20
     @ViewBuilder var content: () -> Content
 
     var body: some View {
         content()
             .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Color.adaptiveCardBackground(emphasized: emphasized))
+            .glassEffect(
+                emphasized
+                    ? .regular.tint(Color(red: 1.0, green: 0.72, blue: 0.42).opacity(0.35)).interactive()
+                    : .clear,
+                in: .rect(cornerRadius: cornerRadius)
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(Color.adaptiveSeparator, lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 4)
     }
 }
 
