@@ -51,7 +51,10 @@ targets:
         ENABLE_PREVIEWS: YES
 
   InventoryWidget:
-    type: bundle.widget-extension
+    # Xcode 的 Widget 扩展就是 app-extension 类型（配合 Info.plist 的
+    # NSExtensionPointIdentifier=com.apple.widgetkit-extension 即成为小组件）；
+    # XcodeGen 不提供 bundle.widget-extension 类型名，用了会解析失败
+    type: app-extension
     platform: iOS
     sources:
       - path: Sources/Widget
