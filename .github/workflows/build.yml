@@ -17,6 +17,7 @@ jobs:
     runs-on: macos-latest
     permissions:
       contents: write
+      issues: write
 
     steps:
       - name: 检出代码
@@ -66,6 +67,16 @@ jobs:
           path: build_log.txt
           if-no-files-found: warn
           retention-days: 7
+
+      - name: 上报编译错误到 Issue（失败时，公开可见，免登录查看）
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "## 编译失败日志（build_log.txt 末尾 100 行）" > body.md
+          echo "" >> body.md
+          tail -n 100 build_log.txt >> body.md 2>/dev/null || echo "（无日志文件）" >> body.md
+          gh issue create --title "CI 编译失败 $(date -u +%m-%dT%H:%MZ)" --body-file body.md || true
 
       - name: 打包 IPA
         run: |
