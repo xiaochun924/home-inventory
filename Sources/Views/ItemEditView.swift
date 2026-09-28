@@ -1,3 +1,564 @@
 import SwiftUI
 import SwiftData
 import UIKit
+
+/// 新增 / 编辑物品（二级页面）
+/// 板块使用普通磨砂卡片（MaterialCard，参考 BatteryInsight 写法），标题在卡片内左上角；
+/// 输入框保持简约浅灰圆角，胶囊分段选中纯绿底白字
+/// 逻辑：
+///  - 按剩余天数提醒 → 显示「使用历史消耗预测」+「平均消耗周期」
+///  - 按库存数量提醒 → 隐藏消耗相关项
+///  - 启用保质期 → 可选择「到期日期」或「保质期月数」两种记录方式
+/// 存储位置候选：优先取已设置区域，其次历史位置；从区域页进入时自动预填该区域
+/// 右滑返回：系统导航栏隐藏后手势失效，用 simultaneousGesture DragGesture 恢复（BatteryInsight 同款）
+/// 删除：编辑模式下底部提供红色「删除物品」按钮（确认后级联删除拆封/补货记录）
+/// 颜色安全：inputBg / chipBg 使用系统语义色（systemGray5）而非 UIColor{...} 动态闭包——
+/// iOS 26 AsyncRenderer 在异步线程解析动态颜色会触发 Swift 6 actor 隔离断言崩溃（见崩溃日志）
+struct ItemEditView: View {
+    enum Mode {
+        case add
+        case edit(InventoryItem)
+    }
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    let mode: Mode
+
+    // 查询全部物品，用于收集历史存放位置供选择复用
+    @Query(sort: \InventoryItem.createdAt) private var allItems: [InventoryItem]
+    // 已设置的区域（分区管理）
+    @Query(sort: \InventoryArea.createdAt) private var areas: [InventoryArea]
+    // 从区域页跳转添加时预填的存储位置
+    @AppStorage("pendingAddLocation") private var pendingAddLocation = ""
+
+    @State private var name = ""
+    @State private var brand = ""
+    @State private var category: Category = .paper
+    @State private var location = ""
+    @State private var totalStock = 1
+    @State private var inUse = 0
+    @State private var avgConsumeDays = 7
+    @State private var reminderDays = 3
+    @State private var reminderRule: ReminderRule = .days
+    @State private var isOpened = true
+    @AppStorage("useHistoryPrediction") private var useHistoryPrediction = true
+    // 保质期
+    @State private var enableExpiry = false
+    @State private var expiryMode: ExpiryMode = .date
+    @State private var expiryDate = Date()
+    @State private var shelfLifeMonths = 12
+    // 删除确认
+    @State private var showDeleteConfirm = false
+
+    /// 编辑模式下的目标物品（一次解包，替代多处 if case 匹配）
+    private var editItem: InventoryItem? {
+        if case .edit(let item) = mode { return item }
+        return nil
+    }
+
+    private var isEditing: Bool { editItem != nil }
+
+    var body: some View {
+        ZStack {
+            AppBackground().ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: 16) {
+                    // 板块一：消耗品信息
+                    MaterialCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            cardTitle("消耗品信息")
+                            field("名称 *") { nameField }
+                            field("品牌") { brandField }
+                            field("分类 *") { categoryChips }
+                        }
+                        .padding(16)
+                    }
+
+                    // 板块二：库存与位置
+                    MaterialCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            cardTitle("库存与位置")
+                            field("数量 *") { stockInput($totalStock) }
+                            field("使用中") { stockInput($inUse) }
+                            field("存储位置 *") {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    locationField
+                                    if !locationCandidates.isEmpty {
+                                        locationChips
+                                    }
+                                }
+                            }
+                            toggleRow("已拆封", subtitle: "拆封后开始计算预计可用天数", isOn: $isOpened)
+                        }
+                        .padding(16)
+                    }
+
+                    // 板块三：消耗与提醒
+                    MaterialCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            cardTitle("消耗与提醒")
+                            field("提醒规则") { reminderRulePicker }
+
+                            // 仅「按剩余天数」需要消耗周期：显示历史消耗预测 + 平均消耗周期
+                            if reminderRule == .days {
+                                toggleRow("使用历史消耗预测", subtitle: "未来根据使用情况自动优化周期", isOn: $useHistoryPrediction)
+                                if useHistoryPrediction {
+                                    Text("预测周期暂无·有预测数据后自动使用")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.secondary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                field("平均消耗周期 *") { stockStepper("每件约 \(avgConsumeDays) 天", onDown: decrementAvg, onUp: incrementAvg) }
+                            }
+
+                            field("补货提醒 *") {
+                                stockStepper(reminderRule == .days ? "剩余 \(reminderDays) 天时提醒" : "库存 ≤ \(reminderDays) 件时提醒",
+                                             onDown: decrementRemind, onUp: incrementRemind)
+                            }
+                        }
+                        .padding(16)
+                        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: reminderRule)
+                    }
+
+                    // 板块四：保质期
+                    MaterialCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            cardTitle("保质期")
+                            toggleRow("启用保质期", subtitle: "按每次拆封时间计算过期日期", isOn: $enableExpiry)
+                            if enableExpiry {
+                                field("计算方式") { expiryModePicker }
+                                if expiryMode == .date {
+                                    field("到期日期 *") { expiryDateField }
+                                } else {
+                                    field("保质期月数 *") { stockStepper("\(shelfLifeMonths) 个月", onDown: decrementMonths, onUp: incrementMonths) }
+                                }
+                            }
+                        }
+                        .padding(16)
+                        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: enableExpiry)
+                        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: expiryMode)
+                    }
+
+                    // 删除：仅编辑模式显示（红色纯色胶囊，确认后级联删除记录）
+                    if isEditing {
+                        Button {
+                            showDeleteConfirm = true
+                        } label: {
+                            Text("删除物品")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.red)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
+                                .background(Capsule().fill(Color.red.opacity(0.10)))
+                        }
+                        .alert("删除物品", isPresented: $showDeleteConfirm) {
+                            Button("删除", role: .destructive) {
+                                deleteItem()
+                            }
+                            Button("取消", role: .cancel) { }
+                        } message: {
+                            Text("将删除「\(name)」及其全部拆封/补货记录，此操作不可恢复。")
+                        }
+                    }
+
+                    Spacer().frame(height: 20)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 40)
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                GlassTopBar(
+                    title: isEditing ? "编辑物品" : "添加物品",
+                    leading: { GlassCircleButton(icon: "chevron.left") { dismiss() } },
+                    trailing: {
+                        Button(action: save) {
+                            Text(isEditing ? "保存" : "添加")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 18)
+                                .padding(.vertical, 9)
+                                .background(Capsule().fill(Color.brandGreen))
+                        }
+                    }
+                )
+            }
+        }
+        // 系统导航栏已隐藏，手动恢复右滑返回手势（BatteryInsight 同款写法）
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 25)
+                .onEnded { value in
+                    if value.translation.width > 60,
+                       abs(value.translation.width) > abs(value.translation.height) {
+                        dismiss()
+                    }
+                }
+        )
+        .onAppear(perform: load)
+    }
+
+    // MARK: - 操作
+
+    /// 删除物品：SwiftData 级联删除（拆封/补货记录 deleteRule: .cascade 自动清理）
+    private func deleteItem() {
+        if let item = editItem {
+            modelContext.delete(item)
+            do {
+                try modelContext.save()
+            } catch {
+                showSaveError("删除失败，请重试")
+            }
+        }
+        dismiss()
+    }
+
+    // MARK: - 样式
+
+    /// 卡片内标题（与设置页「数据统计/区域管理」同款）
+    private func cardTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundColor(.primary)
+    }
+
+    /// 简约浅灰圆角输入容器（系统五档灰：在白卡上清晰可见、深浅模式自适应、线程安全）
+    private var inputBg: some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(Color(uiColor: .systemGray5))
+    }
+
+    /// 胶囊未选中底色（系统五档灰：深浅模式自适应，线程安全）
+    private var chipBg: Color {
+        Color(uiColor: .systemGray5)
+    }
+
+    private func field(_ title: String, @ViewBuilder content: @escaping () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+            content()
+        }
+    }
+
+    /// 开关行：左文字右开关，无背景框
+    private func toggleRow(_ title: String, subtitle: String, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 15))
+                    .foregroundColor(.primary)
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .tint(Color.brandGreen)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func load() {
+        if let item = editItem {
+            name = item.name
+            brand = item.brand
+            category = item.category
+            location = item.location
+            totalStock = item.totalStock
+            inUse = item.inUse
+            avgConsumeDays = item.avgConsumeDays
+            reminderDays = item.reminderDays
+            reminderRule = item.reminderRuleEnum
+            isOpened = item.isOpened
+            enableExpiry = item.expiryEnabled
+            expiryMode = item.expiryModeEnum
+            expiryDate = item.expiryDate ?? Date()
+            shelfLifeMonths = max(1, item.shelfLifeMonths)
+        } else {
+            // 从区域页「去添加」进入：预填该区域，并消费掉临时标记
+            location = pendingAddLocation
+            pendingAddLocation = ""
+        }
+    }
+
+    private func save() {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        if let item = editItem {
+            applyFields(to: item)
+        } else {
+            let item = InventoryItem(
+                name: trimmed,
+                brand: brand.trimmingCharacters(in: .whitespaces),
+                category: category,
+                location: location.isEmpty ? "未指定" : location,
+                totalStock: max(0, totalStock),
+                inUse: max(0, inUse),
+                avgConsumeDays: max(1, avgConsumeDays),
+                reminderDays: max(1, reminderDays),
+                reminderRule: reminderRule.rawValue,
+                isOpened: isOpened,
+                expiryEnabled: enableExpiry,
+                expiryMode: expiryMode.rawValue,
+                expiryDate: enableExpiry && expiryMode == .date ? expiryDate : nil,
+                shelfLifeMonths: max(1, shelfLifeMonths)
+            )
+            modelContext.insert(item)
+            applyFields(to: item)
+        }
+        do {
+            try modelContext.save()
+            dismiss()
+        } catch {
+            showSaveError("保存失败，请重试")
+        }
+    }
+
+    /// 将当前表单值统一写入目标物品（编辑与新增共用，避免字段重复）
+    private func applyFields(to item: InventoryItem) {
+        item.name = name.trimmingCharacters(in: .whitespaces)
+        item.brand = brand.trimmingCharacters(in: .whitespaces)
+        item.category = category
+        item.location = location.isEmpty ? "未指定" : location
+        item.totalStock = max(0, totalStock)
+        item.inUse = max(0, inUse)
+        item.avgConsumeDays = max(1, avgConsumeDays)
+        item.reminderDays = max(1, reminderDays)
+        item.reminderRule = reminderRule.rawValue
+        item.isOpened = isOpened
+        if isOpened { item.lastUnpackDate = item.lastUnpackDate ?? Date() }
+        item.expiryEnabled = enableExpiry
+        item.expiryMode = expiryMode.rawValue
+        item.expiryDate = enableExpiry && expiryMode == .date ? expiryDate : nil
+        item.shelfLifeMonths = max(1, shelfLifeMonths)
+    }
+
+    private func showSaveError(_ message: String) {
+        // 保存失败轻提示（顶层悬浮标签，2 秒后消失）
+        let scene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first(where: { $0.activationState == .foregroundActive })
+        guard let window = scene?.windows.first(where: { $0.isKeyWindow }) else { return }
+        let label = UILabel()
+        label.text = message
+        label.font = .systemFont(ofSize: 14, weight: .medium)
+        label.textColor = .white
+        label.backgroundColor = UIColor.black.withAlphaComponent(0.75)
+        label.layer.cornerRadius = 10
+        label.clipsToBounds = true
+        label.textAlignment = .center
+        label.frame = CGRect(x: 0, y: 0, width: 200, height: 44)
+        label.center = CGPoint(x: window.bounds.midX, y: window.bounds.midY)
+        label.alpha = 0
+        window.addSubview(label)
+        UIView.animate(withDuration: 0.25) { label.alpha = 1 }
+        UIView.animate(withDuration: 0.3, delay: 2.0, options: []) {
+            label.alpha = 0
+        } completion: { _ in
+            label.removeFromSuperview()
+        }
+    }
+
+    // MARK: - 输入控件
+
+    private var nameField: some View {
+        TextField("请输入名称", text: $name)
+            .font(.system(size: 15))
+            .padding(14)
+            .background(inputBg)
+    }
+
+    private var brandField: some View {
+        TextField("例如：维达", text: $brand)
+            .font(.system(size: 15))
+            .padding(14)
+            .background(inputBg)
+    }
+
+    /// 分类标签选择：流式换行布局（避免 LazyVGrid 高频切换崩溃），未选中浅灰底，选中纯绿底白字
+    private var categoryChips: some View {
+        FlowLayout(spacing: 10) {
+            ForEach(Category.allCases) { c in
+                Button { category = c } label: {
+                    Text(c.rawValue)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(category == c ? .white : Color.brandDeepGreen)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(category == c ? Color.brandGreen : chipBg))
+                }
+            }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: category)
+    }
+
+    /// 提醒规则：纯色胶囊分段切换
+    private var reminderRulePicker: some View {
+        HStack(spacing: 4) {
+            segmentCapsule("按剩余天数", selected: reminderRule == .days) { reminderRule = .days }
+            segmentCapsule("按库存数量", selected: reminderRule == .quantity) { reminderRule = .quantity }
+        }
+        .padding(4)
+        .background(Capsule().fill(chipBg))
+    }
+
+    /// 保质期计算方式：按到期日期 / 按保质期月数
+    private var expiryModePicker: some View {
+        HStack(spacing: 4) {
+            segmentCapsule("按到期日期", selected: expiryMode == .date) { expiryMode = .date }
+            segmentCapsule("按保质期月数", selected: expiryMode == .months) { expiryMode = .months }
+        }
+        .padding(4)
+        .background(Capsule().fill(chipBg))
+    }
+
+    private func segmentCapsule(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(selected ? .white : .secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(selected ? Color.brandGreen : Color.clear))
+        }
+    }
+
+    private var locationField: some View {
+        TextField("请输入存放位置", text: $location)
+            .font(.system(size: 15))
+            .foregroundColor(location.isEmpty ? .secondary : .primary)
+            .padding(14)
+            .background(inputBg)
+    }
+
+    /// 位置候选：已设置区域优先，其次历史使用过的位置（去重）
+    private var locationCandidates: [String] {
+        var set = Set<String>()
+        for a in areas { set.insert(a.name) }
+        for loc in allItems.map(\.location) {
+            if !loc.isEmpty && loc != "未指定" { set.insert(loc) }
+        }
+        return set.sorted()
+    }
+
+    /// 位置候选胶囊：流式换行，点击即填入
+    private var locationChips: some View {
+        FlowLayout(spacing: 8) {
+            ForEach(locationCandidates, id: \.self) { loc in
+                Button { location = loc } label: {
+                    Text(loc)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(location == loc ? .white : Color.brandDeepGreen)
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .background(Capsule().fill(location == loc ? Color.brandGreen : chipBg))
+                }
+            }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: location)
+    }
+
+    /// 到期日期选择（compact 日期选择器）
+    private var expiryDateField: some View {
+        DatePicker("", selection: $expiryDate, displayedComponents: .date)
+            .labelsHidden()
+            .datePickerStyle(.compact)
+            .tint(Color.brandGreen)
+            .padding(12)
+            .background(inputBg)
+    }
+
+    /// 数量输入：可手动输入数字（数字键盘），也保留 +/- 步进按钮
+    private func stockInput(_ value: Binding<Int>) -> some View {
+        HStack(spacing: 10) {
+            TextField("0", text: Binding(
+                get: { "\(value.wrappedValue)" },
+                set: { newValue in
+                    // 只保留数字字符，空输入视为 0
+                    let digits = newValue.filter(\.isNumber)
+                    value.wrappedValue = Int(digits) ?? 0
+                }
+            ))
+            .keyboardType(.numberPad)
+            .font(.system(size: 15, weight: .medium))
+            Text("件")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+            Spacer()
+            Button { if value.wrappedValue > 0 { value.wrappedValue -= 1 } } label: { stepIcon("minus") }
+            Button { value.wrappedValue += 1 } label: { stepIcon("plus") }
+        }
+        .padding(10)
+        .background(inputBg)
+    }
+
+    private func stockStepper(_ valueText: String, onDown: @escaping () -> Void, onUp: @escaping () -> Void) -> some View {
+        HStack {
+            Text(valueText)
+                .font(.system(size: 15, weight: .medium))
+            Spacer()
+            Button(action: onDown) { stepIcon("minus") }
+            Button(action: onUp) { stepIcon("plus") }
+        }
+        .padding(10)
+        .background(inputBg)
+    }
+
+    private func stepIcon(_ icon: String) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: 15, weight: .bold))
+            .foregroundColor(Color.brandTint)
+            .frame(width: 34, height: 34)
+            .background(Circle().fill(Color.brandGreen.opacity(0.15)))
+    }
+
+    private func incrementAvg() { avgConsumeDays += 1 }
+    private func decrementAvg() { if avgConsumeDays > 1 { avgConsumeDays -= 1 } }
+    private func incrementRemind() { reminderDays += 1 }
+    private func decrementRemind() { if reminderDays > 1 { reminderDays -= 1 } }
+    private func incrementMonths() { shelfLifeMonths += 1 }
+    private func decrementMonths() { if shelfLifeMonths > 1 { shelfLifeMonths -= 1 } }
+}
+
+/// 轻量流式换行布局：子视图按宽度自动换行（替代 LazyVGrid，高频状态切换更稳定）
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 10
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        for sub in subviews {
+            let size = sub.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth, x > 0 {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return CGSize(width: maxWidth, height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+        for sub in subviews {
+            let size = sub.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX, x > bounds.minX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            sub.place(at: CGPoint(x: x, y: y), proposal: .unspecified)
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
+}
