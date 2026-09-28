@@ -1,6 +1,10 @@
 import SwiftUI
 import SwiftData
 
+/// 主页：全部库存总览（未设置区域时显示）
+/// 骨架对齐 BatteryInsight：系统 List + Section（分组背景 + 分组卡片 + 小节标题）
+/// 保留功能交互：大标题滚动收缩胶囊、搜索/添加、统计概览卡、状态分组、
+/// 物品卡（左信息右状态 + 剩余进度条）、底部筛选、zoom 详情转场
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \InventoryItem.createdAt) private var items: [InventoryItem]
@@ -47,59 +51,79 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    // 搜索（展开时显示，带顶部滑入过渡）
-                    if showSearch {
-                        searchField
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                    // 已选筛选标签
-                    if let cat = categoryFilter {
-                        FilterChip(label: "品类：\(cat.rawValue)") { categoryFilter = nil }
-                            .transition(.scale(scale: 0.7).combined(with: .opacity))
-                    }
-                    if let room = roomFilter {
-                        FilterChip(label: "位置：\(room)") { roomFilter = nil }
-                            .transition(.scale(scale: 0.7).combined(with: .opacity))
-                    }
+            List {
+                // 搜索（展开时显示）
+                if showSearch {
+                    searchField
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+                }
+                // 已选筛选标签
+                if let cat = categoryFilter {
+                    FilterChip(label: "品类：\(cat.rawValue)") { categoryFilter = nil }
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 2, leading: 20, bottom: 2, trailing: 20))
+                }
+                if let room = roomFilter {
+                    FilterChip(label: "位置：\(room)") { roomFilter = nil }
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 2, leading: 20, bottom: 2, trailing: 20))
+                }
 
-                    // 三项概览条
-                    statsBanner
+                // 统计概览卡
+                statsBanner
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
 
-                    // 需要关注（仅在有关注项时出现，橙色高亮）
-                    if !attentionItems.isEmpty {
-                        sectionHeader("需要关注", count: attentionItems.count, color: .orange)
+                // 需要关注（橙色描边高亮）
+                if !attentionItems.isEmpty {
+                    Section {
                         itemRows(attentionItems, emphasized: true)
+                    } header: {
+                        sectionHeader("需要关注", count: attentionItems.count, color: .orange)
                     }
+                }
 
-                    sectionHeader("库存充足", count: sufficientItems.count, color: Color(red: 0.36, green: 0.62, blue: 0.48))
+                // 库存充足
+                Section {
                     if sufficientItems.isEmpty {
                         emptyCard(text: "还没有物品，点右上角 + 添加第一个物品", showAdd: true)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     } else {
                         itemRows(sufficientItems)
                     }
+                } header: {
+                    sectionHeader("库存充足", count: sufficientItems.count, color: Color(red: 0.36, green: 0.62, blue: 0.48))
+                }
 
-                    sectionHeader("尚未拆封", count: unopenedItems.count, color: .gray)
+                // 尚未拆封
+                Section {
                     if unopenedItems.isEmpty {
                         emptyCard(text: "还没有拆封记录", showAdd: false)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     } else {
                         itemRows(unopenedItems)
                     }
-
-                    footerHint
-
-                    Spacer().frame(height: 96)
+                } header: {
+                    sectionHeader("尚未拆封", count: unopenedItems.count, color: .gray)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                // 筛选切换时平滑过渡
-                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: categoryFilter)
-                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: roomFilter)
+
+                // 底部提示
+                footerHint
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 12, trailing: 20))
             }
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(12)
             .scrollIndicators(.hidden)
-            // 滚动偏移连续读取：统计区一上移即开始收缩
-            // 收缩进度 = offset / 10（滚动 10pt 即完全收起）
+            // 滚动偏移连续读取：统计区一上移即开始收缩（进度 = offset / 10，10pt 完全收起）
             .onScrollGeometryChange(for: CGFloat.self) { geo in
                 geo.contentOffset.y
             } action: { _, offset in
@@ -110,7 +134,7 @@ struct HomeView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                // 固定高度 64pt 顶栏容器：大标题 ↔ 玻璃胶囊随滚动比例连续变换，不溢出、不遮挡
+                // 固定高度 64pt 顶栏容器：大标题 ↔ 玻璃胶囊随滚动比例连续变换
                 ZStack {
                     // 胶囊标题（随进度淡入放大）
                     Text("家庭库存")
@@ -122,7 +146,7 @@ struct HomeView: View {
                         .opacity(Double(titleProgress))
                         .scaleEffect(0.85 + 0.15 * titleProgress)
 
-                    // 大标题 + 副标题（顶部左对齐，随进度淡出缩小，字号收紧确保不溢出）
+                    // 大标题 + 副标题（随进度淡出缩小）
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("家庭库存")
@@ -139,7 +163,7 @@ struct HomeView: View {
                     .opacity(Double(1 - titleProgress))
                     .scaleEffect(1 - 0.08 * titleProgress, anchor: .topLeading)
 
-                    // 右上角按钮组：独立 + 胶囊 + 搜索（参考「有余」：+ 在顶栏边角）
+                    // 右上角按钮组：独立 + 胶囊 + 搜索
                     HStack {
                         Spacer()
                         HStack(spacing: 10) {
@@ -157,7 +181,7 @@ struct HomeView: View {
                 }
                 .frame(height: 64, alignment: .top)
             }
-            // 类别/位置筛选：固定在底部，与 tab 栏同一层级，透明底不遮挡内容
+            // 类别/位置筛选：固定在底部，与 tab 栏同一层级
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 filterRow
                     .padding(.horizontal, 20)
@@ -167,7 +191,7 @@ struct HomeView: View {
             .navigationDestination(isPresented: $showAddSheet) {
                 ItemEditView(mode: .add)
             }
-            // 物品详情：二级页面（push），zoom 转场：从物品卡放大打开 / 反向缩回关闭
+            // 物品详情：zoom 转场
             .navigationDestination(item: $selectedItem) { item in
                 ItemDetailView(item: item)
                     .navigationTransition(.zoom(sourceID: item.id, in: namespace))
@@ -233,36 +257,32 @@ struct HomeView: View {
             .frame(width: 1, height: 34)
     }
 
-    // MARK: - 分区
+    // MARK: - 分区（BatteryInsight 风格：小节标题 + 右侧计数）
 
     private func sectionHeader(_ title: String, count: Int, color: Color) -> some View {
         HStack {
             Text(title)
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(Color.adaptiveTextGreen)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.primary)
             Spacer()
             Text("\(count) 件")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(color))
+                .foregroundColor(color)
         }
-        .padding(.top, 6)
     }
 
     private func itemRows(_ list: [InventoryItem], emphasized: Bool = false) -> some View {
-        VStack(spacing: 12) {
-            ForEach(list) { item in
-                ItemRow(item: item, emphasized: emphasized)
-                    // zoom 转场源：点按进入详情时从这张卡片放大，返回时缩回
-                    .matchedTransitionSource(id: item.id, in: namespace) { source in
-                        source.clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture { selectedItem = item }
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-            }
+        ForEach(list) { item in
+            ItemRow(item: item, emphasized: emphasized)
+                // zoom 转场源：点按进入详情时从这张卡片放大，返回时缩回
+                .matchedTransitionSource(id: item.id, in: namespace) { source in
+                    source.clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { selectedItem = item }
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
         }
     }
 
@@ -372,10 +392,8 @@ struct FilterChip: View {
     }
 }
 
-/// 首页/区域页统一卡片（参考 BatteryInsight 写法）：
-/// 系统分组卡片色 secondarySystemGroupedBackground（浅色纯白 / 深色 #1C1C1E）
-/// + 系统分隔线细描边；与系统 List 卡片、详情/编辑/设置页卡片完全一致，
-/// 页面底色（淡灰）与卡片（纯白）层次分明。
+/// 首页/区域页统一卡片（BatteryInsight 记录卡写法）：
+/// ultraThinMaterial 微透明白底 + 系统分隔线细描边；深浅模式自适应、通透不显黑。
 /// 需关注卡片：橙色描边高亮。
 struct HomeCard<Content: View>: View {
     var emphasized: Bool = false
@@ -387,7 +405,7 @@ struct HomeCard<Content: View>: View {
             .padding(16)
             .background {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                    .fill(.ultraThinMaterial)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -399,7 +417,7 @@ struct HomeCard<Content: View>: View {
     }
 }
 
-/// 首页物品卡（参考「有余」：左信息 + 右状态/天数 + 底部进度条，信息层级更清晰）
+/// 物品卡（参考「有余」：左信息 + 右状态/天数 + 底部进度条，信息层级更清晰）
 /// 进度条表示「剩余库存占比」：满库时 100%，随消耗逐渐缩短，用完归零。
 /// 状态胶囊：纯色底 + 白字（非液态玻璃），颜色按需关注/充足/未拆封区分
 /// 库存/使用中：黑色（primary）加大一号显示
