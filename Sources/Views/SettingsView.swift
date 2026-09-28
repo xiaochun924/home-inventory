@@ -3,6 +3,8 @@ import SwiftData
 import UniformTypeIdentifiers
 
 /// 设置页：区域管理（可排序）、备份与恢复、数据管理
+/// 卡片全部使用普通磨砂卡（MaterialCard，BatteryInsight 风格统一）——
+/// 与主页/区域/详情/编辑页卡片完全一致：ultraThinMaterial + separator 描边
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var items: [InventoryItem]
@@ -30,7 +32,7 @@ struct SettingsView: View {
                     Button {
                         showHome = true
                     } label: {
-                        GlassCard {
+                        MaterialCard {
                             VStack(alignment: .leading, spacing: 10) {
                                 HStack {
                                     Text("数据统计")
@@ -51,7 +53,7 @@ struct SettingsView: View {
                     .buttonStyle(.plain)
 
                     // 区域管理：添加区域后底部导航出现对应分区入口；↑↓ 可调整顺序
-                    GlassCard {
+                    MaterialCard {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("区域管理")
                                 .font(.system(size: 16, weight: .semibold))
@@ -132,7 +134,7 @@ struct SettingsView: View {
                         Text("添加后底部导航会出现该区域的库存管理入口，并自动设为默认进入页。")
                     }
 
-                    GlassCard {
+                    MaterialCard {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("备份与恢复")
                                 .font(.system(size: 16, weight: .semibold))
@@ -174,7 +176,7 @@ struct SettingsView: View {
                         Text("备份中共 \(pendingCount) 件物品、\(pendingAreas.count) 个区域，将替换当前全部数据（物品与记录）。")
                     }
 
-                    GlassCard {
+                    MaterialCard {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("数据管理")
                                 .font(.system(size: 16, weight: .semibold))
