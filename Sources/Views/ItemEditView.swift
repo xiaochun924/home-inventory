@@ -10,6 +10,7 @@ import SwiftData
 ///  - 启用保质期 → 可选择「到期日期」或「保质期月数」两种记录方式
 /// 存储位置候选：优先取已设置区域，其次历史位置；从区域页进入时自动预填该区域
 /// 右滑返回：系统导航栏隐藏后手势失效，用 simultaneousGesture DragGesture 恢复（BatteryInsight 同款）
+/// 删除：编辑模式下底部提供红色「删除物品」按钮（确认后级联删除拆封/补货记录）
 struct ItemEditView: View {
     enum Mode {
         case add
@@ -43,6 +44,8 @@ struct ItemEditView: View {
     @State private var expiryMode = 0            // 0=按到期日期 1=按保质期月数
     @State private var expiryDate = Date()
     @State private var shelfLifeMonths = 12
+    // 删除确认
+    @State private var showDeleteConfirm = false
 
     var body: some View {
         ZStack {
@@ -126,6 +129,28 @@ struct ItemEditView: View {
                         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: expiryMode)
                     }
 
+                    // 删除：仅编辑模式显示（红色纯色胶囊，确认后级联删除记录）
+                    if isEditing {
+                        Button {
+                            showDeleteConfirm = true
+                        } label: {
+                            Text("删除物品")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.red)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
+                                .background(Capsule().fill(Color.red.opacity(0.10)))
+                        }
+                        .alert("删除物品", isPresented: $showDeleteConfirm) {
+                            Button("删除", role: .destructive) {
+                                deleteItem()
+                            }
+                            Button("取消", role: .cancel) { }
+                        } message: {
+                            Text("将删除「\(name)」及其全部拆封/补货记录，此操作不可恢复。")
+                        }
+                    }
+
                     Spacer().frame(height: 20)
                 }
                 .padding(.horizontal, 20)
@@ -166,6 +191,17 @@ struct ItemEditView: View {
     private var isEditing: Bool {
         if case .edit = mode { return true }
         return false
+    }
+
+    // MARK: - 操作
+
+    /// 删除物品：SwiftData 级联删除（拆封/补货记录 deleteRule: .cascade 自动清理）
+    private func deleteItem() {
+        if case .edit(let item) = mode {
+            modelContext.delete(item)
+            try? modelContext.save()
+        }
+        dismiss()
     }
 
     // MARK: - 样式
