@@ -2,7 +2,8 @@ import SwiftUI
 import SwiftData
 
 /// 新增 / 编辑物品（二级页面）
-/// 简约白底风格：去除卡片描边与投影，浅灰圆角输入框、灰色小字分区标题、细分隔线，信息清爽直给
+/// 板块使用与设置页一致的液态玻璃卡片（GlassCard），标题在卡片内左上角；
+/// 输入框保持简约浅灰圆角，胶囊分段选中纯绿底白字
 /// 逻辑：
 ///  - 按剩余天数提醒 → 显示「使用历史消耗预测」+「平均消耗周期」
 ///  - 按库存数量提醒 → 隐藏消耗相关项
@@ -47,76 +48,82 @@ struct ItemEditView: View {
             AppBackground().ignoresSafeArea()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(spacing: 16) {
                     // 板块一：消耗品信息
-                    sectionHeader("消耗品信息")
-                    VStack(spacing: 12) {
-                        field("名称 *") { nameField }
-                        field("品牌") { brandField }
-                        field("分类 *") { categoryChips }
+                    GlassCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            cardTitle("消耗品信息")
+                            field("名称 *") { nameField }
+                            field("品牌") { brandField }
+                            field("分类 *") { categoryChips }
+                        }
+                        .padding(16)
                     }
 
-                    divider
-
                     // 板块二：库存与位置
-                    sectionHeader("库存与位置")
-                    VStack(spacing: 12) {
-                        field("数量 *") { stockInput($totalStock) }
-                        field("使用中") { stockInput($inUse) }
-                        field("存储位置 *") {
-                            VStack(alignment: .leading, spacing: 10) {
-                                locationField
-                                if !locationCandidates.isEmpty {
-                                    locationChips
+                    GlassCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            cardTitle("库存与位置")
+                            field("数量 *") { stockInput($totalStock) }
+                            field("使用中") { stockInput($inUse) }
+                            field("存储位置 *") {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    locationField
+                                    if !locationCandidates.isEmpty {
+                                        locationChips
+                                    }
+                                }
+                            }
+                            toggleRow("已拆封", subtitle: "拆封后开始计算预计可用天数", isOn: $isOpened)
+                        }
+                        .padding(16)
+                    }
+
+                    // 板块三：消耗与提醒
+                    GlassCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            cardTitle("消耗与提醒")
+                            field("提醒规则") { reminderRulePicker }
+
+                            // 仅「按剩余天数」需要消耗周期：显示历史消耗预测 + 平均消耗周期
+                            if reminderRule == 0 {
+                                toggleRow("使用历史消耗预测", subtitle: "未来根据使用情况自动优化周期", isOn: $useHistoryPrediction)
+                                if useHistoryPrediction {
+                                    Text("预测周期暂无·有预测数据后自动使用")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.secondary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                field("平均消耗周期 *") { stockStepper("每件约 \(avgConsumeDays) 天", onDown: decrementAvg, onUp: incrementAvg) }
+                            }
+
+                            field("补货提醒 *") {
+                                stockStepper(reminderRule == 0 ? "剩余 \(reminderDays) 天时提醒" : "库存 ≤ \(reminderDays) 件时提醒",
+                                             onDown: decrementRemind, onUp: incrementRemind)
+                            }
+                        }
+                        .padding(16)
+                        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: reminderRule)
+                    }
+
+                    // 板块四：保质期
+                    GlassCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            cardTitle("保质期")
+                            toggleRow("启用保质期", subtitle: "按每次拆封时间计算过期日期", isOn: $enableExpiry)
+                            if enableExpiry {
+                                field("计算方式") { expiryModePicker }
+                                if expiryMode == 0 {
+                                    field("到期日期 *") { expiryDateField }
+                                } else {
+                                    field("保质期月数 *") { stockStepper("\(shelfLifeMonths) 个月", onDown: decrementMonths, onUp: incrementMonths) }
                                 }
                             }
                         }
-                        toggleRow("已拆封", subtitle: "拆封后开始计算预计可用天数", isOn: $isOpened)
+                        .padding(16)
+                        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: enableExpiry)
+                        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: expiryMode)
                     }
-
-                    divider
-
-                    // 板块三：消耗与提醒
-                    sectionHeader("消耗与提醒")
-                    VStack(spacing: 12) {
-                        field("提醒规则") { reminderRulePicker }
-
-                        // 仅「按剩余天数」需要消耗周期：显示历史消耗预测 + 平均消耗周期
-                        if reminderRule == 0 {
-                            toggleRow("使用历史消耗预测", subtitle: "未来根据使用情况自动优化周期", isOn: $useHistoryPrediction)
-                            if useHistoryPrediction {
-                                Text("预测周期暂无·有预测数据后自动使用")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.secondary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            field("平均消耗周期 *") { stockStepper("每件约 \(avgConsumeDays) 天", onDown: decrementAvg, onUp: incrementAvg) }
-                        }
-
-                        field("补货提醒 *") {
-                            stockStepper(reminderRule == 0 ? "剩余 \(reminderDays) 天时提醒" : "库存 ≤ \(reminderDays) 件时提醒",
-                                         onDown: decrementRemind, onUp: incrementRemind)
-                        }
-                    }
-                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: reminderRule)
-
-                    divider
-
-                    // 板块四：保质期
-                    sectionHeader("保质期")
-                    VStack(spacing: 12) {
-                        toggleRow("启用保质期", subtitle: "按每次拆封时间计算过期日期", isOn: $enableExpiry)
-                        if enableExpiry {
-                            field("计算方式") { expiryModePicker }
-                            if expiryMode == 0 {
-                                field("到期日期 *") { expiryDateField }
-                            } else {
-                                field("保质期月数 *") { stockStepper("\(shelfLifeMonths) 个月", onDown: decrementMonths, onUp: incrementMonths) }
-                            }
-                        }
-                    }
-                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: enableExpiry)
-                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: expiryMode)
 
                     Spacer().frame(height: 20)
                 }
@@ -152,6 +159,13 @@ struct ItemEditView: View {
 
     // MARK: - 样式
 
+    /// 卡片内标题（与设置页「数据统计/区域管理」同款）
+    private func cardTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundColor(.primary)
+    }
+
     /// 简约浅灰圆角输入容器（白底上轻微灰底，无描边）
     private var inputBg: some View {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -160,22 +174,6 @@ struct ItemEditView: View {
                     ? UIColor(white: 0.18, alpha: 1)
                     : UIColor(red: 0.95, green: 0.955, blue: 0.95, alpha: 1)
             }))
-    }
-
-    /// 板块间细分隔线
-    private var divider: some View {
-        Rectangle()
-            .fill(Color.adaptiveSeparator)
-            .frame(height: 1)
-            .padding(.vertical, 2)
-    }
-
-    /// 分区标题：灰色小字（简约风格，不加重色装饰）
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundColor(.secondary)
-            .padding(.top, 2)
     }
 
     private func field(_ title: String, @ViewBuilder content: @escaping () -> some View) -> some View {
