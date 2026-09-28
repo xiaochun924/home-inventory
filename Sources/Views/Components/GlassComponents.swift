@@ -3,7 +3,7 @@ import SwiftUI
 // ===== 深色模式自适应 =====
 // 统一策略（BatteryInsight 风格，系统标准色）：
 //  - 页面底色 = systemGroupedBackground（浅色淡灰 #F2F2F7 / 深色纯黑）
-//  - 卡片底色 = secondarySystemGroupedBackground（浅色纯白 / 深色 #1C1C1E）——与系统 List 卡片一致
+//  - 卡片底色 = ultraThinMaterial（微透明白底，叠加淡灰背景呈近白，深浅自适应）——BatteryInsight 记录卡同款
 //  - 输入容器/未选中胶囊 = systemGray5（浅色 #E5E5EA / 深色 #2C2C2E），在白卡上可见、有层次
 // 全部使用系统语义色：深浅模式系统自适应、跨线程安全（iOS 26 AsyncRenderer 在异步线程解析
 // UIColor{...} 动态闭包会触发 Swift 6 断言崩溃，见编辑页崩溃日志）。
@@ -106,7 +106,7 @@ struct GlassCircleButton: View {
     }
 }
 
-/// 液态玻璃卡片（官方 Liquid Glass 容器）——仅设置页等用户指定保留玻璃的场景使用
+/// 液态玻璃卡片（官方 Liquid Glass 容器）——保留玻璃场景使用
 struct GlassCard<Content: View>: View {
     var cornerRadius: CGFloat = 20
     @ViewBuilder var content: () -> Content
@@ -117,9 +117,8 @@ struct GlassCard<Content: View>: View {
     }
 }
 
-/// 普通磨砂卡片（参考 BatteryInsight 写法）：
-/// 系统分组卡片色 secondarySystemGroupedBackground（浅色纯白 / 深色 #1C1C1E）
-/// + 系统分隔线细描边；与系统 List 卡片完全一致，底色（淡灰）与卡片（纯白）层次分明。
+/// 普通磨砂卡片（BatteryInsight 记录卡同款写法）：
+/// ultraThinMaterial 微透明白底 + 系统分隔线细描边；深浅模式自适应、通透不显黑。
 /// 无液态玻璃高光——避免页面切换闪烁与点击命中异常。
 /// 用于物品相关页面（主页卡片 / 详情页信息卡 / 编辑页板块 / 设置页卡片）。
 struct MaterialCard<Content: View>: View {
@@ -130,7 +129,7 @@ struct MaterialCard<Content: View>: View {
         content()
             .background {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                    .fill(.ultraThinMaterial)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
