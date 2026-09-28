@@ -4,6 +4,7 @@ import Foundation
 enum Format {
     /// 相对天数：X 天前 / X 天后 / 今天
     /// 按自然日（startOfDay）计算：只要跨了日历日即算 1 天，避免昨晚的操作今晨仍显示为「今天」
+    /// Calendar.current 为系统缓存实例，线程安全，无需手动缓存
     static func relativeDays(from date: Date, to now: Date = Date()) -> String {
         let cal = Calendar.current
         let startOfDate = cal.startOfDay(for: date)
@@ -15,10 +16,9 @@ enum Format {
     }
 
     /// 短日期：M月d日
+    /// 用 Date.FormatStyle（值类型、线程安全），替代每次新建 DateFormatter 的高频开销
     static func shortDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "M月d日"
-        return formatter.string(from: date)
+        date.formatted(.dateTime.month(.defaultDigits).day(.defaultDigits))
     }
 }
 
