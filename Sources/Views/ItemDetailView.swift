@@ -7,6 +7,8 @@ import SwiftData
 /// 按钮配色对齐截图：拆封=浅色纯色胶囊+深绿文字；补货=深绿纯色胶囊+白字（均非液态玻璃）
 /// 拆封语义：本次拆封多少，使用中就是多少（替换而非累加）
 /// 稳定性：拆封/补货确认先 dismiss 再改模型，数量上限 999，避免返回主页闪烁/闪退
+/// 修改入口：NavigationLink 直连编辑页（不再用 navigationDestination(isPresented:)，
+/// 避免 zoom 转场推入的页面内再嵌套注册 destination 导致的闪退）
 struct ItemDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -15,7 +17,6 @@ struct ItemDetailView: View {
     // 查询全部物品，用于收集历史存放位置供选择复用
     @Query(sort: \InventoryItem.createdAt) private var allItems: [InventoryItem]
 
-    @State private var showEdit = false
     @State private var showUnpack = false
     @State private var showRestock = false
     @State private var showCustomLocation = false
@@ -45,15 +46,21 @@ struct ItemDetailView: View {
                     HStack {
                         GlassCircleButton(icon: "chevron.left") { dismiss() }
                         Spacer()
-                        GlassCircleButton(icon: "pencil", tint: Color(red: 0.36, green: 0.62, blue: 0.48)) { showEdit = true }
+                        // 修改：NavigationLink 直连编辑页（保持玻璃圆形样式）
+                        NavigationLink {
+                            ItemEditView(mode: .edit(item))
+                        } label: {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                .frame(width: 40, height: 40)
+                                .glassEffect(.regular.tint(Color(red: 0.36, green: 0.62, blue: 0.48)).interactive(), in: .circle)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .frame(height: 48)
                 .padding(.horizontal, 16)
-            }
-            // 编辑物品：二级页面（push），支持右滑返回
-            .navigationDestination(isPresented: $showEdit) {
-                ItemEditView(mode: .edit(item))
             }
             .sheet(isPresented: $showUnpack) {
                 UnpackSheet(item: item)
