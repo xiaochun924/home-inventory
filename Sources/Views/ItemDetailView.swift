@@ -5,11 +5,12 @@ import SwiftData
 /// 布局参考「有余」详情样式：极简顶栏 + 头部大标题（商品名/品类 | 库存大字）+
 /// 信息卡两列（存放位置 | 最近拆封+拆封进度）+ 拆封/补货按钮 + 预测/提醒卡片
 /// 按钮配色对齐截图：拆封=浅色纯色胶囊+深绿文字；补货=深绿纯色胶囊+白字（均非液态玻璃）
+/// 卡片使用普通磨砂材质（MaterialCard，参考 BatteryInsight 写法）——不做液态玻璃，
+/// 避免玻璃在二级页面/列表中的点击命中异常与切换闪烁。
 /// 拆封语义：本次拆封多少，使用中就是多少（替换而非累加）
 /// 稳定性：拆封/补货确认先 dismiss 再改模型，数量上限 999，避免返回主页闪烁/闪退
 /// 修改入口：NavigationLink 直连编辑页（不再用 navigationDestination(isPresented:)，
 /// 避免 zoom 转场推入的页面内再嵌套注册 destination 导致的闪退）
-/// 玻璃按钮统一去 .interactive()：避免 iOS 26 Liquid Glass 在页面进出动画时的高光闪烁（过曝）
 struct ItemDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -47,15 +48,15 @@ struct ItemDetailView: View {
                     HStack {
                         GlassCircleButton(icon: "chevron.left") { dismiss() }
                         Spacer()
-                        // 修改：NavigationLink 直连编辑页（保持玻璃圆形样式，非交互玻璃避免闪烁）
+                        // 修改：NavigationLink 直连编辑页（纯色圆形按钮，稳定可点）
                         NavigationLink {
                             ItemEditView(mode: .edit(item))
                         } label: {
                             Image(systemName: "pencil")
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                                .foregroundColor(.white)
                                 .frame(width: 40, height: 40)
-                                .glassEffect(.regular.tint(Color(red: 0.36, green: 0.62, blue: 0.48)), in: .circle)
+                                .background(Circle().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
                         }
                         .buttonStyle(.plain)
                     }
@@ -114,7 +115,7 @@ struct ItemDetailView: View {
     // MARK: - 信息卡：存放位置 | 最近拆封 + 拆封进度
 
     private var infoCard: some View {
-        GlassCard {
+        MaterialCard {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("存放位置")
@@ -221,7 +222,7 @@ struct ItemDetailView: View {
     // MARK: - 消耗预测
 
     private var predictionCard: some View {
-        GlassCard {
+        MaterialCard {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Text("消耗预测")
@@ -259,7 +260,7 @@ struct ItemDetailView: View {
     // MARK: - 消耗与提醒
 
     private var reminderCard: some View {
-        GlassCard {
+        MaterialCard {
             VStack(alignment: .leading, spacing: 10) {
                 Text("消耗与提醒")
                     .font(.system(size: 16, weight: .semibold))
@@ -287,7 +288,7 @@ struct ItemDetailView: View {
     // MARK: - 记录
 
     private var recordsCard: some View {
-        GlassCard {
+        MaterialCard {
             VStack(alignment: .leading, spacing: 12) {
                 Text("记录")
                     .font(.system(size: 16, weight: .semibold))
