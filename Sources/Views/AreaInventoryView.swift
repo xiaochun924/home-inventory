@@ -3,7 +3,7 @@ import SwiftData
 
 /// 分区库存管理页：显示某个区域的全部物品，独立管理（拆封/补货/详情）
 /// 入口在底部 tab 栏（设置页添加区域后自动出现）
-/// 顶栏与主页一致：右上角 + 胶囊（添加该区域物品）+ 搜索按钮（区域内搜索）
+/// 顶栏：添加胶囊在左侧、搜索按钮在最右侧，全部使用官方液态玻璃组件（Liquid Glass）
 /// 布局复用主页卡片样式：概览条 + 物品卡列表 + zoom 详情转场
 struct AreaInventoryView: View {
     @Environment(\.modelContext) private var modelContext
@@ -58,20 +58,28 @@ struct AreaInventoryView: View {
             .scrollIndicators(.hidden)
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                // 顶栏：区域名 + 右上角按钮组（+ 胶囊 + 搜索，与主页一致）
+                // 顶栏：添加胶囊（左）+ 区域名胶囊（中）+ 搜索按钮（最右），全官方液态玻璃
                 GlassTopBar(
                     title: area,
+                    leading: {
+                        // 添加该区域物品：液态玻璃胶囊（官方 Liquid Glass），位置自动预填该区域
+                        Button {
+                            pendingAddLocation = area
+                            showAdd = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 46, height: 36)
+                                .glassEffect(.regular.tint(Color(red: 0.36, green: 0.62, blue: 0.48)).interactive(), in: .capsule)
+                        }
+                    },
                     trailing: {
-                        HStack(spacing: 10) {
-                            SolidAddCapsule {
-                                pendingAddLocation = area
-                                showAdd = true
-                            }
-                            GlassCircleButton(icon: showSearch ? "xmark" : "magnifyingglass") {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    showSearch.toggle()
-                                    if !showSearch { searchText = "" }
-                                }
+                        // 搜索：液态玻璃圆形按钮（最右侧）
+                        GlassCircleButton(icon: showSearch ? "xmark" : "magnifyingglass") {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                showSearch.toggle()
+                                if !showSearch { searchText = "" }
                             }
                         }
                     }
