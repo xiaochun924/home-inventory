@@ -11,6 +11,8 @@ import SwiftData
 /// 存储位置候选：优先取已设置区域，其次历史位置；从区域页进入时自动预填该区域
 /// 右滑返回：系统导航栏隐藏后手势失效，用 simultaneousGesture DragGesture 恢复（BatteryInsight 同款）
 /// 删除：编辑模式下底部提供红色「删除物品」按钮（确认后级联删除拆封/补货记录）
+/// 颜色安全：inputBg / chipBg 使用系统语义色（systemGray6）而非 UIColor{...} 动态闭包——
+/// iOS 26 AsyncRenderer 在异步线程解析动态颜色会触发 Swift 6 actor 隔离断言崩溃（见崩溃日志）
 struct ItemEditView: View {
     enum Mode {
         case add
@@ -213,21 +215,15 @@ struct ItemEditView: View {
             .foregroundColor(.primary)
     }
 
-    /// 简约浅灰圆角输入容器（白底上轻微灰底，无描边）
+    /// 简约浅灰圆角输入容器（系统语义灰：深浅模式自适应，线程安全，不触发异步渲染崩溃）
     private var inputBg: some View {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(Color(uiColor: UIColor { t in
-                t.userInterfaceStyle == .dark
-                    ? UIColor(white: 0.18, alpha: 1)
-                    : UIColor(red: 0.95, green: 0.955, blue: 0.95, alpha: 1)
-            }))
+            .fill(Color(uiColor: .systemGray6))
     }
 
-    /// 胶囊未选中底色（浅色=浅灰，深色=深灰）
+    /// 胶囊未选中底色（系统语义灰：深浅模式自适应，线程安全）
     private var chipBg: Color {
-        Color(uiColor: UIColor { t in
-            t.userInterfaceStyle == .dark ? UIColor(white: 0.20, alpha: 1) : UIColor(red: 0.95, green: 0.955, blue: 0.95, alpha: 1)
-        })
+        Color(uiColor: .systemGray6)
     }
 
     private func field(_ title: String, @ViewBuilder content: @escaping () -> some View) -> some View {
