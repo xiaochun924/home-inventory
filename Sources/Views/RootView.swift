@@ -37,7 +37,7 @@ struct RootView: View {
         }
         // iOS 26 官方液态玻璃 tab bar：滚动时自动最小化，tap 切换为系统原生交互
         .tabBarMinimizeBehavior(.onScrollDown)
-        .tint(Color(red: 0.30, green: 0.55, blue: 0.48))
+        .tint(Color.brandTint)
         // 跟随系统深浅色外观（不锁浅色），背景/卡片/文字均自适应
         .onAppear { syncSelection() }
         // 区域增删或排序变化时同步选中项
