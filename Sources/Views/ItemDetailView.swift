@@ -18,8 +18,8 @@ struct ItemDetailView: View {
     @Environment(\.modelContext) private var modelContext
     let item: InventoryItem
 
-    // 查询全部物品，用于收集历史存放位置供选择复用
-    @Query(sort: \InventoryItem.createdAt) private var allItems: [InventoryItem]
+    // 已设置的区域：作为存放位置候选的主来源（避免为候选位置全量查询全部物品）
+    @Query(sort: \InventoryArea.sortOrder) private var areas: [InventoryArea]
 
     @State private var showUnpack = false
     @State private var showRestock = false
@@ -58,7 +58,7 @@ struct ItemDetailView: View {
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.white)
                                 .frame(width: 40, height: 40)
-                                .background(Circle().fill(Color(red: 0.36, green: 0.62, blue: 0.48)))
+                                .background(Circle().fill(Color.brandGreen))
                         }
                     }
                 }
@@ -113,7 +113,7 @@ struct ItemDetailView: View {
                 HStack(alignment: .lastTextBaseline, spacing: 6) {
                     Text("\(item.totalStock)")
                         .font(.system(size: 36, weight: .bold))
-                        .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
+                        .foregroundColor(Color.brandDeepGreen)
                         .contentTransition(.numericText())
                     Text("库存")
                         .font(.system(size: 12))
@@ -146,7 +146,7 @@ struct ItemDetailView: View {
                             .foregroundColor(.secondary)
                         Text("\(Int(unpackProgress * 100))%")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(unpackProgress > 0 ? Color(red: 0.28, green: 0.52, blue: 0.40) : Color.secondary)
+                            .foregroundColor(unpackProgress > 0 ? Color.brandDeepGreen : Color.secondary)
                     }
                     if let rec = item.lastUnpackRecord {
                         Text("\(Format.shortDate(rec.date))·\(Format.relativeDays(from: rec.date))·\(rec.quantity)包")
@@ -170,7 +170,7 @@ struct ItemDetailView: View {
         return min(max(Double(item.inUse) / Double(total), 0), 1)
     }
 
-    /// 存放位置修改入口：弹出历史已用位置供选择 + 自定义输入（自定义过的位置自动进入候选）
+    /// 存放位置修改入口：弹出已设置区域 + 当前所在位置供选择 + 自定义输入
     private var locationControl: some View {
         Menu {
             ForEach(usedLocations, id: \.self) { r in
@@ -189,7 +189,7 @@ struct ItemDetailView: View {
                     .foregroundColor(.primary)
                 Image(systemName: "pencil")
                     .font(.system(size: 11))
-                    .foregroundColor(Color(red: 0.36, green: 0.62, blue: 0.48))
+                    .foregroundColor(Color.brandGreen)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
@@ -200,11 +200,13 @@ struct ItemDetailView: View {
         }
     }
 
-    /// 历史存放位置（数据库去重，自定义过即出现在候选里）
+    /// 位置候选 = 已设置区域 + 当前所在位置（去重），避免全量查询物品
     private var usedLocations: [String] {
-        Set(allItems.map { $0.location })
-            .filter { !$0.isEmpty && $0 != "未指定" }
-            .sorted()
+        var set = Set(areas.map(\.name))
+        if !item.location.isEmpty && item.location != "未指定" {
+            set.insert(item.location)
+        }
+        return set.sorted()
     }
 
     private func setLocation(_ new: String) {
@@ -222,13 +224,13 @@ struct ItemDetailView: View {
             Button { showUnpack = true } label: {
                 Text("拆封")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Color(red: 0.13, green: 0.35, blue: 0.29))
+                    .foregroundColor(Color.brandDarkText)
                     .frame(maxWidth: .infinity)
                     .frame(height: 48)
-                    .background(Capsule().fill(Color(red: 0.93, green: 0.95, blue: 0.94)))
+                    .background(Capsule().fill(Color.brandUnpackFill))
             }
             // 补货：纯色深绿胶囊 + 白字（截图样式）
-            SolidCapsuleButton(title: "补货", tint: Color(red: 0.20, green: 0.42, blue: 0.37)) {
+            SolidCapsuleButton(title: "补货", tint: Color.brandRestock) {
                 showRestock = true
             }
         }
@@ -251,10 +253,10 @@ struct ItemDetailView: View {
                 HStack(alignment: .lastTextBaseline) {
                     Text("预计\(item.remainingDays)天后耗尽")
                         .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(Color(red: 0.28, green: 0.52, blue: 0.40))
+                        .foregroundColor(Color.brandDeepGreen)
                         .contentTransition(.numericText())
                     Spacer()
-                    StatusCapsule(text: item.status.title, color: item.needsAttention ? .orange : Color(red: 0.36, green: 0.62, blue: 0.48))
+                    StatusCapsule(text: item.status.title, color: item.needsAttention ? .orange : Color.brandGreen)
                 }
 
                 HStack {
@@ -280,9 +282,9 @@ struct ItemDetailView: View {
                 Text("消耗与提醒")
                     .font(.system(size: 16, weight: .semibold))
                 Divider().opacity(0.4)
-                row("提醒依据", value: item.reminderRule == 1 ? "按库存数量" : "按剩余天数")
+                row("提醒依据", value: item.reminderRuleEnum == .quantity ? "按库存数量" : "按剩余天数")
                 row("平均消耗", value: "\(item.avgConsumeDays)天")
-                row("提醒规则", value: item.reminderRule == 1 ? "库存≤\(item.reminderDays)件" : "剩余≤\(item.reminderDays)天")
+                row("提醒规则", value: item.reminderRuleEnum == .quantity ? "库存≤\(item.reminderDays)件" : "剩余≤\(item.reminderDays)天")
             }
             .padding(16)
         }
@@ -361,7 +363,7 @@ struct UnpackSheet: View {
     @State private var quantity = 1
 
     var body: some View {
-        sheetBody(title: "拆封", tint: Color(red: 0.36, green: 0.62, blue: 0.48)) {
+        sheetBody(title: "拆封", tint: Color.brandGreen) {
             // 数量限制：1...库存（库存为 0 时不能拆封），上限 999
             let qty = min(max(1, quantity), max(1, item.totalStock))
             dismiss()
@@ -407,8 +409,8 @@ struct RestockSheet: View {
             Text("当前库存 \(item.totalStock) 件")
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)
-            QuantityField(value: $quantity, tint: Color(red: 0.55, green: 0.65, blue: 0.48))
-            SolidCapsuleButton(title: "确认", tint: Color(red: 0.45, green: 0.58, blue: 0.33)) {
+            QuantityField(value: $quantity, tint: Color.brandRestockField)
+            SolidCapsuleButton(title: "确认", tint: Color.brandRestockLight) {
                 let qty = min(max(1, quantity), 999)
                 dismiss()
                 item.restock(quantity: qty)
@@ -428,7 +430,7 @@ struct RestockSheet: View {
 /// 输入上限 999，防止超大数值影响计算稳定性
 struct QuantityField: View {
     @Binding var value: Int
-    var tint: Color = Color(red: 0.36, green: 0.62, blue: 0.48)
+    var tint: Color = Color.brandGreen
 
     var body: some View {
         HStack(spacing: 16) {
